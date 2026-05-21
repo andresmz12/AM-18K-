@@ -15,11 +15,11 @@ export default function Dashboard({ stats, loading, onViewInventory }) {
   }
 
   const cards = [
-    { label: 'Total Productos',    value: stats.totalProductos,              icon: '◈', type: 'neutral'  },
-    { label: 'Total Invertido',    value: cop(stats.totalInvertido),          icon: '↓', type: 'neutral'  },
-    { label: 'Valor Inventario',   value: cop(stats.valorInventario),         icon: '◆', type: 'positive' },
-    { label: 'Ganancia Potencial', value: cop(stats.gananciasPotencial),      icon: '▲', type: 'positive' },
-    { label: 'Stock Bajo',         value: stats.productosStockBajo,           icon: '⚠', type: stats.productosStockBajo > 0 ? 'warning' : 'neutral' },
+    { label: 'Total Productos',    value: stats.totalProductos,         icon: '◈', type: 'neutral'  },
+    { label: 'Total Invertido',    value: cop(stats.totalInvertido),    icon: '↓', type: 'neutral'  },
+    { label: 'Valor Inventario',   value: cop(stats.valorInventario),   icon: '◆', type: 'positive' },
+    { label: 'Ganancia Potencial', value: cop(stats.gananciasPotencial),icon: '▲', type: 'positive' },
+    { label: 'Stock Bajo',         value: stats.productosStockBajo,     icon: '⚠', type: stats.productosStockBajo > 0 ? 'warning' : 'neutral' },
   ];
 
   return (

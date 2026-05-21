@@ -46,7 +46,7 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const openAdd = () => { setEditProduct(null); setShowForm(true); };
+  const openAdd  = () => { setEditProduct(null); setShowForm(true); };
   const openEdit = product => { setEditProduct(product); setShowForm(true); };
   const closeForm = () => { setShowForm(false); setEditProduct(null); };
 

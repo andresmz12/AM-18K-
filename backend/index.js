@@ -31,17 +31,17 @@ app.get('/api/products', (req, res) => {
 });
 
 app.get('/api/dashboard', (req, res) => {
-  const total        = db.prepare('SELECT COUNT(*) AS c FROM products').get().c;
-  const invertido    = db.prepare('SELECT COALESCE(SUM(costo * stock), 0) AS v FROM products').get().v;
-  const valorInv     = db.prepare('SELECT COALESCE(SUM(precio_venta * stock), 0) AS v FROM products').get().v;
-  const stockBajo    = db.prepare('SELECT COUNT(*) AS c FROM products WHERE stock <= stock_minimo').get().c;
+  const total     = db.prepare('SELECT COUNT(*) AS c FROM products').get().c;
+  const invertido = db.prepare('SELECT COALESCE(SUM(costo * stock), 0) AS v FROM products').get().v;
+  const valorInv  = db.prepare('SELECT COALESCE(SUM(precio_venta * stock), 0) AS v FROM products').get().v;
+  const stockBajo = db.prepare('SELECT COUNT(*) AS c FROM products WHERE stock <= stock_minimo').get().c;
 
   res.json({
-    totalProductos:      total,
-    totalInvertido:      invertido,
-    valorInventario:     valorInv,
-    gananciasPotencial:  valorInv - invertido,
-    productosStockBajo:  stockBajo
+    totalProductos:     total,
+    totalInvertido:     invertido,
+    valorInventario:    valorInv,
+    gananciasPotencial: valorInv - invertido,
+    productosStockBajo: stockBajo
   });
 });
 

@@ -74,23 +74,17 @@ export default function ProductTable({
               <tbody>
                 {products.map(p => (
                   <tr key={p.id} className={p.stock <= p.stock_minimo ? 'row--alert' : ''}>
-                    <td>
-                      <span className="code-badge">{p.codigo}</span>
-                    </td>
+                    <td><span className="code-badge">{p.codigo}</span></td>
                     <td>
                       <span className="product-name">{p.nombre}</span>
                       {p.stock <= p.stock_minimo && (
                         <span className="stock-alert-icon" title={`Stock bajo (mín. ${p.stock_minimo})`}>⚠</span>
                       )}
                     </td>
-                    <td>
-                      <span className={catClass(p.categoria)}>{p.categoria}</span>
-                    </td>
+                    <td><span className={catClass(p.categoria)}>{p.categoria}</span></td>
                     <td className="td-num">{cop(p.costo)}</td>
                     <td className="td-num">{p.porcentaje_ganancia}%</td>
-                    <td className="td-num">
-                      <strong>{cop(p.precio_venta)}</strong>
-                    </td>
+                    <td className="td-num"><strong>{cop(p.precio_venta)}</strong></td>
                     <td>
                       <span className={`stock-badge ${p.stock <= p.stock_minimo ? 'stock-badge--low' : ''}`}>
                         {p.stock}
@@ -99,16 +93,8 @@ export default function ProductTable({
                     <td>{p.proveedor || <span className="text-muted">—</span>}</td>
                     <td>
                       <div className="action-btns">
-                        <button
-                          className="btn-icon btn-icon--edit"
-                          onClick={() => onEdit(p)}
-                          title="Editar"
-                        >✎</button>
-                        <button
-                          className="btn-icon btn-icon--delete"
-                          onClick={() => onDelete(p.id)}
-                          title="Eliminar"
-                        >✕</button>
+                        <button className="btn-icon btn-icon--edit" onClick={() => onEdit(p)} title="Editar">✎</button>
+                        <button className="btn-icon btn-icon--delete" onClick={() => onDelete(p.id)} title="Eliminar">✕</button>
                       </div>
                     </td>
                   </tr>
