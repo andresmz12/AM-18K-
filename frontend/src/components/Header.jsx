@@ -24,6 +24,12 @@ export default function Header({ view, setView, onAdd, onExport }) {
         >
           Inventario
         </button>
+        <button
+          className={`nav-btn ${view === 'ventas' ? 'nav-btn--active' : ''}`}
+          onClick={() => setView('ventas')}
+        >
+          Ventas
+        </button>
       </nav>
 
       <div className="header__actions">

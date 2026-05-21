@@ -5,7 +5,7 @@ const cop = v =>
     style: 'currency', currency: 'COP', minimumFractionDigits: 0
   }).format(v || 0);
 
-export default function Dashboard({ stats, loading, onViewInventory }) {
+export default function Dashboard({ stats, statsCategoria, loading, onViewInventory }) {
   if (loading || !stats) {
     return (
       <div className="dashboard">
@@ -19,7 +19,10 @@ export default function Dashboard({ stats, loading, onViewInventory }) {
     { label: 'Total Invertido',    value: cop(stats.totalInvertido),    icon: '↓', type: 'neutral'  },
     { label: 'Valor Inventario',   value: cop(stats.valorInventario),   icon: '◆', type: 'positive' },
     { label: 'Ganancia Potencial', value: cop(stats.gananciasPotencial),icon: '▲', type: 'positive' },
-    { label: 'Stock Bajo',         value: stats.productosStockBajo,     icon: '⚠', type: stats.productosStockBajo > 0 ? 'warning' : 'neutral' },
+    { label: 'Stock Bajo',         value: stats.productosStockBajo,     icon: '⚠', type: stats.productosStockBajo > 0 ? 'warning' : 'neutral', clickable: stats.productosStockBajo > 0 },
+    { label: 'Ventas Hoy',         value: stats.ventasHoy,             icon: '↗', type: 'neutral'  },
+    { label: 'Ingresos Hoy',       value: cop(stats.ingresosHoy),      icon: '$', type: stats.ingresosHoy > 0 ? 'positive' : 'neutral' },
+    { label: 'Peso Oro',           value: `${(stats.pesoTotalOroGramos || 0).toFixed(1)} g`, icon: '⚖', type: 'neutral' },
   ];
 
   return (
@@ -33,8 +36,8 @@ export default function Dashboard({ stats, loading, onViewInventory }) {
           <div
             key={i}
             className={`card card--${card.type}`}
-            onClick={card.label === 'Stock Bajo' && stats.productosStockBajo > 0 ? onViewInventory : undefined}
-            style={card.label === 'Stock Bajo' && stats.productosStockBajo > 0 ? { cursor: 'pointer' } : {}}
+            onClick={card.clickable ? onViewInventory : undefined}
+            style={card.clickable ? { cursor: 'pointer' } : {}}
           >
             <div className="card__icon">{card.icon}</div>
             <div className="card__content">
@@ -44,6 +47,41 @@ export default function Dashboard({ stats, loading, onViewInventory }) {
           </div>
         ))}
       </div>
+
+      {statsCategoria && statsCategoria.length > 0 && (
+        <div className="cat-stats">
+          <h3 className="cat-stats__title">Inventario por Categoría</h3>
+          <div className="table-wrapper">
+            <table className="table cat-stats__table">
+              <thead>
+                <tr>
+                  <th>Categoría</th>
+                  <th className="td-num">Productos</th>
+                  <th className="td-num">Valor Total</th>
+                  <th className="td-num">Invertido</th>
+                  <th>% del Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statsCategoria.map(c => (
+                  <tr key={c.categoria}>
+                    <td><strong>{c.categoria}</strong></td>
+                    <td className="td-num">{c.cantidad}</td>
+                    <td className="td-num">{cop(c.valor_total)}</td>
+                    <td className="td-num">{cop(c.invertido)}</td>
+                    <td>
+                      <div className="pct-wrap">
+                        <div className="pct-bar" style={{ width: `${c.porcentaje}%` }} />
+                        <span className="pct-label">{c.porcentaje}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="dashboard__action">
         <button className="btn btn--primary btn--lg" onClick={onViewInventory}>

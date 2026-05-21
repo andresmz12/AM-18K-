@@ -35,13 +35,18 @@ app.get('/api/dashboard', (req, res) => {
   const invertido = db.prepare('SELECT COALESCE(SUM(costo * stock), 0) AS v FROM products').get().v;
   const valorInv  = db.prepare('SELECT COALESCE(SUM(precio_venta * stock), 0) AS v FROM products').get().v;
   const stockBajo = db.prepare('SELECT COUNT(*) AS c FROM products WHERE stock <= stock_minimo').get().c;
+  const pesoOro   = db.prepare("SELECT COALESCE(SUM(peso_gramos * stock), 0) AS v FROM products WHERE categoria = 'Oro 18k'").get().v;
+  const ventasHoy = db.prepare("SELECT COUNT(*) AS c, COALESCE(SUM(total), 0) AS t FROM ventas WHERE date(fecha) = date('now', 'localtime')").get();
 
   res.json({
-    totalProductos:     total,
-    totalInvertido:     invertido,
-    valorInventario:    valorInv,
-    gananciasPotencial: valorInv - invertido,
-    productosStockBajo: stockBajo
+    totalProductos:      total,
+    totalInvertido:      invertido,
+    valorInventario:     valorInv,
+    gananciasPotencial:  valorInv - invertido,
+    productosStockBajo:  stockBajo,
+    pesoTotalOroGramos:  pesoOro,
+    ventasHoy:           ventasHoy.c,
+    ingresosHoy:         ventasHoy.t
   });
 });
 
@@ -97,6 +102,76 @@ app.put('/api/products/:id', (req, res) => {
 app.delete('/api/products/:id', (req, res) => {
   db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
+});
+
+// ─── Ventas ───────────────────────────────────────────────────────────────────
+
+const registrarVenta = db.transaction((productoId, cantidad, precioUnitario, notas) => {
+  const p = db.prepare('SELECT * FROM products WHERE id = ?').get(productoId);
+  if (!p) throw new Error('Producto no encontrado');
+  if (p.stock < cantidad) throw new Error('Stock insuficiente');
+  const total = cantidad * precioUnitario;
+  const r = db.prepare(
+    'INSERT INTO ventas (producto_id, cantidad, precio_unitario, total, notas) VALUES (?,?,?,?,?)'
+  ).run(productoId, cantidad, precioUnitario, total, notas || null);
+  db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(cantidad, productoId);
+  return db.prepare(
+    'SELECT v.*, p.nombre, p.codigo FROM ventas v JOIN products p ON p.id = v.producto_id WHERE v.id = ?'
+  ).get(r.lastInsertRowid);
+});
+
+app.post('/api/ventas', (req, res) => {
+  const { producto_id, cantidad, precio_unitario, notas } = req.body;
+  if (!producto_id || !cantidad || cantidad < 1) {
+    return res.status(400).json({ error: 'Producto y cantidad son requeridos' });
+  }
+  try {
+    const venta = registrarVenta(producto_id, cantidad, precio_unitario, notas);
+    res.status(201).json(venta);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/ventas', (req, res) => {
+  const { periodo = 'hoy' } = req.query;
+  const filtros = {
+    hoy:    "date(v.fecha) = date('now', 'localtime')",
+    semana: "v.fecha >= datetime('now', 'localtime', '-7 days')",
+    mes:    "strftime('%Y-%m', v.fecha) = strftime('%Y-%m', 'now', 'localtime')"
+  };
+  const where = filtros[periodo] || filtros.hoy;
+  const rows = db.prepare(
+    `SELECT v.*, p.nombre, p.codigo FROM ventas v
+     JOIN products p ON p.id = v.producto_id
+     WHERE ${where} ORDER BY v.fecha DESC`
+  ).all();
+  const agg = db.prepare(
+    `SELECT COUNT(*) AS c, COALESCE(SUM(total), 0) AS t FROM ventas v WHERE ${where}`
+  ).get();
+  res.json({ ventas: rows, totalVentas: agg.c, totalIngresos: agg.t });
+});
+
+// ─── Estadísticas por categoría ───────────────────────────────────────────────
+
+app.get('/api/stats/categorias', (req, res) => {
+  const rows = db.prepare(`
+    SELECT
+      categoria,
+      COUNT(*) AS cantidad,
+      COALESCE(SUM(precio_venta * stock), 0) AS valor_total,
+      COALESCE(SUM(costo * stock), 0) AS invertido,
+      COALESCE(SUM(peso_gramos * stock), 0) AS peso_total
+    FROM products
+    GROUP BY categoria
+    ORDER BY valor_total DESC
+  `).all();
+  const totalValor = rows.reduce((s, r) => s + r.valor_total, 0);
+  const result = rows.map(r => ({
+    ...r,
+    porcentaje: totalValor > 0 ? ((r.valor_total / totalValor) * 100).toFixed(1) : '0.0'
+  }));
+  res.json(result);
 });
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────

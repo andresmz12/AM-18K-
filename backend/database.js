@@ -20,7 +20,17 @@ db.exec(`
     notas            TEXT,
     imagen_url       TEXT,
     fecha_creacion   TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
-  )
+  );
+
+  CREATE TABLE IF NOT EXISTS ventas (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    producto_id     INTEGER NOT NULL REFERENCES products(id),
+    cantidad        INTEGER NOT NULL,
+    precio_unitario REAL    NOT NULL,
+    total           REAL    NOT NULL,
+    notas           TEXT,
+    fecha           TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+  );
 `);
 
 module.exports = db;

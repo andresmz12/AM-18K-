@@ -14,25 +14,25 @@ const cop = v =>
   }).format(v || 0);
 
 export default function ProductForm({ product, onSave, onClose }) {
-  const [form, setForm]             = useState(blank);
+  const [form, setForm]           = useState(blank);
   const [precioVenta, setPrecioVenta] = useState(0);
-  const [saving, setSaving]         = useState(false);
+  const [saving, setSaving]       = useState(false);
 
   useEffect(() => {
     if (product) {
       setForm({
-        nombre:              product.nombre              ?? '',
-        codigo:              product.codigo              ?? '',
-        categoria:           product.categoria           ?? 'Oro 18k',
-        descripcion:         product.descripcion         ?? '',
-        peso_gramos:         product.peso_gramos         ?? '',
-        costo:               product.costo               ?? '',
-        porcentaje_ganancia: product.porcentaje_ganancia ?? '',
-        stock:               product.stock               ?? '',
-        stock_minimo:        product.stock_minimo        ?? '1',
-        proveedor:           product.proveedor           ?? '',
-        notas:               product.notas               ?? '',
-        imagen_url:          product.imagen_url          ?? ''
+        nombre:               product.nombre              ?? '',
+        codigo:               product.codigo              ?? '',
+        categoria:            product.categoria           ?? 'Oro 18k',
+        descripcion:          product.descripcion         ?? '',
+        peso_gramos:          product.peso_gramos         ?? '',
+        costo:                product.costo               ?? '',
+        porcentaje_ganancia:  product.porcentaje_ganancia ?? '',
+        stock:                product.stock               ?? '',
+        stock_minimo:         product.stock_minimo        ?? '1',
+        proveedor:            product.proveedor           ?? '',
+        notas:                product.notas               ?? '',
+        imagen_url:           product.imagen_url          ?? ''
       });
     }
   }, [product]);
@@ -50,11 +50,11 @@ export default function ProductForm({ product, onSave, onClose }) {
     setSaving(true);
     await onSave({
       ...form,
-      peso_gramos:         parseFloat(form.peso_gramos)         || null,
-      costo:               parseFloat(form.costo)               || 0,
-      porcentaje_ganancia: parseFloat(form.porcentaje_ganancia) || 0,
-      stock:               parseInt(form.stock)                 || 0,
-      stock_minimo:        parseInt(form.stock_minimo)          || 1
+      peso_gramos:          parseFloat(form.peso_gramos)          || null,
+      costo:                parseFloat(form.costo)                || 0,
+      porcentaje_ganancia:  parseFloat(form.porcentaje_ganancia)  || 0,
+      stock:                parseInt(form.stock)                  || 0,
+      stock_minimo:         parseInt(form.stock_minimo)           || 1
     });
     setSaving(false);
   };
@@ -140,6 +140,15 @@ export default function ProductForm({ product, onSave, onClose }) {
               <label>URL de Imagen</label>
               <input name="imagen_url" type="url" value={form.imagen_url} onChange={set}
                 placeholder="https://..." />
+              {form.imagen_url && (
+                <img
+                  src={form.imagen_url}
+                  alt="Preview"
+                  className="img-preview"
+                  onError={e => { e.target.style.display = 'none'; }}
+                  onLoad={e => { e.target.style.display = 'block'; }}
+                />
+              )}
             </div>
 
             <div className="form-group form-group--full">

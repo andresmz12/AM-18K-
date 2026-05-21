@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const CATEGORIAS = ['Todas', 'Oro 18k', 'Bisutería', 'Accesorios', 'Otro'];
 
@@ -12,9 +12,54 @@ const catClass = cat => {
   return `categoria-badge cat--${map[cat] || 'otro'}`;
 };
 
+function ImgThumb({ url }) {
+  const [broken, setBroken] = useState(false);
+  if (!url || broken) {
+    return <span className="img-placeholder">◈</span>;
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      width="44"
+      height="44"
+      className="img-thumb"
+      onError={() => setBroken(true)}
+    />
+  );
+}
+
+const SORTABLE = {
+  nombre:       'Nombre',
+  codigo:       'Código',
+  costo:        'Costo',
+  precio_venta: 'P. Venta',
+  stock:        'Stock',
+};
+
 export default function ProductTable({
   products, loading, search, setSearch, categoria, setCategoria, onEdit, onDelete, onAdd
 }) {
+  const [sortCol, setSortCol] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
+
+  const handleSort = col => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+
+  const sorted = [...products].sort((a, b) => {
+    if (!sortCol) return 0;
+    const av = a[sortCol], bv = b[sortCol];
+    const cmp = typeof av === 'number' ? av - bv : String(av ?? '').localeCompare(String(bv ?? ''), 'es');
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const sortIcon = col => {
+    if (sortCol !== col) return <span className="sort-icon">⇅</span>;
+    return <span className="sort-icon sort-icon--active">{sortDir === 'asc' ? '▲' : '▼'}</span>;
+  };
+
   return (
     <div className="inventory">
       <div className="inventory__header">
@@ -45,7 +90,7 @@ export default function ProductTable({
 
       {loading ? (
         <div className="loading">Cargando inventario...</div>
-      ) : products.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="empty-state">
           <p className="empty-state__icon">◈</p>
           <p>No hay productos{search || categoria !== 'Todas' ? ' con esos filtros' : ' en el inventario'}</p>
@@ -55,36 +100,56 @@ export default function ProductTable({
         </div>
       ) : (
         <>
-          <p className="results-count">{products.length} producto{products.length !== 1 ? 's' : ''}</p>
+          <p className="results-count">{sorted.length} producto{sorted.length !== 1 ? 's' : ''}</p>
           <div className="table-wrapper">
             <table className="table">
               <thead>
                 <tr>
-                  <th>Código</th>
-                  <th>Nombre</th>
+                  <th className="th-foto">Foto</th>
+                  <th className="th-sortable" onClick={() => handleSort('codigo')}>
+                    Código {sortIcon('codigo')}
+                  </th>
+                  <th className="th-sortable" onClick={() => handleSort('nombre')}>
+                    Nombre {sortIcon('nombre')}
+                  </th>
                   <th>Categoría</th>
-                  <th>Costo</th>
-                  <th>% Gan.</th>
-                  <th>P. Venta</th>
-                  <th>Stock</th>
+                  <th className="th-sortable td-num" onClick={() => handleSort('costo')}>
+                    Costo {sortIcon('costo')}
+                  </th>
+                  <th className="td-num">% Gan.</th>
+                  <th className="th-sortable td-num" onClick={() => handleSort('precio_venta')}>
+                    P. Venta {sortIcon('precio_venta')}
+                  </th>
+                  <th className="th-sortable" onClick={() => handleSort('stock')}>
+                    Stock {sortIcon('stock')}
+                  </th>
                   <th>Proveedor</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {products.map(p => (
+                {sorted.map(p => (
                   <tr key={p.id} className={p.stock <= p.stock_minimo ? 'row--alert' : ''}>
-                    <td><span className="code-badge">{p.codigo}</span></td>
+                    <td className="td-foto">
+                      <ImgThumb url={p.imagen_url} />
+                    </td>
+                    <td>
+                      <span className="code-badge">{p.codigo}</span>
+                    </td>
                     <td>
                       <span className="product-name">{p.nombre}</span>
                       {p.stock <= p.stock_minimo && (
                         <span className="stock-alert-icon" title={`Stock bajo (mín. ${p.stock_minimo})`}>⚠</span>
                       )}
                     </td>
-                    <td><span className={catClass(p.categoria)}>{p.categoria}</span></td>
+                    <td>
+                      <span className={catClass(p.categoria)}>{p.categoria}</span>
+                    </td>
                     <td className="td-num">{cop(p.costo)}</td>
                     <td className="td-num">{p.porcentaje_ganancia}%</td>
-                    <td className="td-num"><strong>{cop(p.precio_venta)}</strong></td>
+                    <td className="td-num">
+                      <strong>{cop(p.precio_venta)}</strong>
+                    </td>
                     <td>
                       <span className={`stock-badge ${p.stock <= p.stock_minimo ? 'stock-badge--low' : ''}`}>
                         {p.stock}
