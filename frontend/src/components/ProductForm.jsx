@@ -155,7 +155,7 @@ export default function ProductForm({ product, onSave, onClose }) {
             </div>
 
             <div className="form-group form-group--full">
-              <label>Imagen</label>
+              <label>Imagen <span style={{fontWeight:400,color:'#9A9A9A'}}>(opcional)</span></label>
               <div className="upload-row">
                 <label className={`btn btn--outline upload-label${uploading ? ' btn--disabled' : ''}`}>
                   {uploading ? 'Subiendo...' : '↑ Subir foto'}
