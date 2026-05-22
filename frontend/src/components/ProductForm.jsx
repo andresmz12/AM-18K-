@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const CATEGORIAS = ['Oro 18k', 'Bisutería', 'Accesorios', 'Otro'];
+const CATEGORIAS = ['Oro 18k', 'Laminado', 'Bisutería', 'Accesorios', 'Otro'];
 
 const blank = {
   nombre: '', codigo: '', categoria: 'Oro 18k', descripcion: '',
@@ -14,9 +14,10 @@ const cop = v =>
   }).format(v || 0);
 
 export default function ProductForm({ product, onSave, onClose }) {
-  const [form, setForm]           = useState(blank);
+  const [form, setForm]               = useState(blank);
   const [precioVenta, setPrecioVenta] = useState(0);
-  const [saving, setSaving]       = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [uploading, setUploading]     = useState(false);
 
   useEffect(() => {
     if (product) {
@@ -44,6 +45,23 @@ export default function ProductForm({ product, onSave, onClose }) {
   }, [form.costo, form.porcentaje_ganancia]);
 
   const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+
+  const handleImageUpload = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    const fd = new FormData();
+    fd.append('image', file);
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      if (res.ok) {
+        const data = await res.json();
+        setForm(f => ({ ...f, imagen_url: data.url }));
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -137,9 +155,28 @@ export default function ProductForm({ product, onSave, onClose }) {
             </div>
 
             <div className="form-group form-group--full">
-              <label>URL de Imagen</label>
-              <input name="imagen_url" type="url" value={form.imagen_url} onChange={set}
-                placeholder="https://..." />
+              <label>Imagen</label>
+              <div className="upload-row">
+                <label className={`btn btn--outline upload-label${uploading ? ' btn--disabled' : ''}`}>
+                  {uploading ? 'Subiendo...' : '↑ Subir foto'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={uploading}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+                <span className="upload-sep">o</span>
+                <input
+                  name="imagen_url"
+                  type="url"
+                  value={form.imagen_url}
+                  onChange={set}
+                  placeholder="https://... (URL externa)"
+                  className="upload-url-input"
+                />
+              </div>
               {form.imagen_url && (
                 <img
                   src={form.imagen_url}

@@ -85,7 +85,7 @@ export default function App() {
   };
 
   const handleSale = async formData => {
-    const res = await fetch('/api/ventas', {
+    const res = await fetch('/api/ventas/bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData)
@@ -93,7 +93,9 @@ export default function App() {
     if (res.ok) {
       setShowSaleForm(false);
       refresh();
-      notify('Venta registrada ✓');
+      const data = await res.json();
+      const n = data.ventas.length;
+      notify(`Venta registrada ✓ — ${n} ítem${n !== 1 ? 's' : ''}`);
     } else {
       const err = await res.json();
       notify(err.error || 'Error al registrar venta', 'error');
