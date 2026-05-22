@@ -279,10 +279,12 @@ app.get('/api/export', async (req, res) => {
 
 // ─── SPA fallback ─────────────────────────────────────────────────────────────
 
+app.get('/health', (req, res) => res.json({ ok: true }));
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
 
-init()
-  .then(() => app.listen(PORT, () => console.log(`AM 18K running on port ${PORT}`)))
-  .catch(err => { console.error('DB init failed:', err); process.exit(1); });
+app.listen(PORT, () => console.log(`AM 18K running on port ${PORT}`));
+
+init().catch(err => console.error('DB init error:', err));

@@ -5,7 +5,7 @@
   },
   "deploy": {
     "startCommand": "node backend/index.js",
-    "healthcheckPath": "/api/dashboard",
+    "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
