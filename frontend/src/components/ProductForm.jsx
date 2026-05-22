@@ -170,7 +170,7 @@ export default function ProductForm({ product, onSave, onClose }) {
                 <span className="upload-sep">o</span>
                 <input
                   name="imagen_url"
-                  type="url"
+                  type="text"
                   value={form.imagen_url}
                   onChange={set}
                   placeholder="https://... (URL externa)"
