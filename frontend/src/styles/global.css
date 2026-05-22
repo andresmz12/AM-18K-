@@ -400,6 +400,7 @@ body {
   white-space: nowrap;
 }
 .cat--oro        { background: #FFF8DC; color: #7A5800; border: 1px solid #D4AF37; }
+.cat--laminado   { background: #E3F2FD; color: #0D47A1; border: 1px solid #90CAF9; }
 .cat--bisuteria  { background: #F3E5F5; color: #6A1B9A; border: 1px solid #CE93D8; }
 .cat--accesorios { background: #E8F5E9; color: #1B5E20; border: 1px solid #81C784; }
 .cat--otro       { background: var(--gray-100); color: var(--gray-600); border: 1px solid var(--gray-200); }
@@ -619,6 +620,149 @@ body {
   border: 1px solid var(--gray-200);
   margin-top: 8px;
   display: block;
+}
+
+/* ── Upload row ─────────────────────────────────────────── */
+
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.upload-label {
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.upload-label.btn--disabled { opacity: 0.55; cursor: not-allowed; }
+
+.upload-sep {
+  font-size: 12px;
+  color: var(--gray-400);
+  flex-shrink: 0;
+}
+
+.upload-url-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 2px solid var(--gray-200);
+  border-radius: var(--radius);
+  font-size: 14px;
+  color: var(--black);
+  background: var(--white);
+  transition: border-color 0.18s;
+}
+.upload-url-input:focus { outline: none; border-color: var(--gold); }
+
+/* ── Sale cart ──────────────────────────────────────────── */
+
+.modal--wide { max-width: 820px; }
+
+.sale-add-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: var(--gray-50);
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+}
+
+.sale-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gray-600);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.sale-cart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--black);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gold-dark);
+}
+.sale-cart .sale-section-label { color: var(--gold); }
+
+.sale-cart-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sale-cart-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--black-soft);
+  border-radius: var(--radius);
+  border: 1px solid var(--black-mid);
+}
+
+.sale-cart-item__info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.sale-cart-item__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sale-cart-item__nums {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.sale-cart-item__detail {
+  font-size: 13px;
+  color: var(--gray-400);
+  white-space: nowrap;
+}
+
+.sale-cart-item__sub {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.sale-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--gold-dark);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sale-total-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.precio-display--lg {
+  font-size: 28px;
 }
 
 /* ============================================================

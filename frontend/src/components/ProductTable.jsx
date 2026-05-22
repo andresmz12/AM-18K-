@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const CATEGORIAS = ['Todas', 'Oro 18k', 'Bisutería', 'Accesorios', 'Otro'];
+const CATEGORIAS = ['Todas', 'Oro 18k', 'Laminado', 'Bisutería', 'Accesorios', 'Otro'];
 
 const cop = v =>
   new Intl.NumberFormat('es-CO', {
@@ -8,7 +8,7 @@ const cop = v =>
   }).format(v || 0);
 
 const catClass = cat => {
-  const map = { 'Oro 18k': 'oro', 'Bisutería': 'bisuteria', 'Accesorios': 'accesorios', 'Otro': 'otro' };
+  const map = { 'Oro 18k': 'oro', 'Laminado': 'laminado', 'Bisutería': 'bisuteria', 'Accesorios': 'accesorios', 'Otro': 'otro' };
   return `categoria-badge cat--${map[cat] || 'otro'}`;
 };
 

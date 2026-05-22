@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const db = require('./database');
 
 const app = express();
@@ -9,6 +11,34 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+// ─── Upload de imágenes ───────────────────────────────────────────────────────
+
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
+
+app.use('/uploads', express.static(uploadsDir));
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Solo se permiten imágenes'));
+  }
+});
+
+app.post('/api/upload', upload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
+  res.json({ url: `/uploads/${req.file.filename}` });
+});
 
 // ─── Products ────────────────────────────────────────────────────────────────
 
@@ -197,6 +227,43 @@ app.get('/api/export', (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename=inventario-am18k.csv');
   res.send(csv);
+});
+
+// ─── Venta múltiple (carrito) ─────────────────────────────────────────────────
+
+const registrarVentaBulk = db.transaction((items, notasGlobal) => {
+  const resultados = [];
+  for (const item of items) {
+    const { producto_id, cantidad, precio_unitario, notas } = item;
+    const p = db.prepare('SELECT * FROM products WHERE id = ?').get(producto_id);
+    if (!p) throw new Error(`Producto no encontrado (id ${producto_id})`);
+    if (p.stock < cantidad) throw new Error(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
+    const total = cantidad * precio_unitario;
+    const r = db.prepare(
+      'INSERT INTO ventas (producto_id, cantidad, precio_unitario, total, notas) VALUES (?,?,?,?,?)'
+    ).run(producto_id, cantidad, precio_unitario, total, notas || notasGlobal || null);
+    db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(cantidad, producto_id);
+    resultados.push(db.prepare(
+      'SELECT v.*, p.nombre, p.codigo FROM ventas v JOIN products p ON p.id = v.producto_id WHERE v.id = ?'
+    ).get(r.lastInsertRowid));
+  }
+  return resultados;
+});
+
+app.post('/api/ventas/bulk', (req, res) => {
+  const { items, notas } = req.body;
+  if (!Array.isArray(items) || items.length === 0)
+    return res.status(400).json({ error: 'Se requiere al menos un producto' });
+  for (const item of items) {
+    if (!item.producto_id || !item.cantidad || item.cantidad < 1)
+      return res.status(400).json({ error: 'Datos de ítem inválidos' });
+  }
+  try {
+    const ventas = registrarVentaBulk(items, notas);
+    res.status(201).json({ ventas, total: ventas.reduce((s, v) => s + v.total, 0) });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // ─── SPA fallback ─────────────────────────────────────────────────────────────
