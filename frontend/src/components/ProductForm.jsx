@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const CATEGORIAS = ['Oro 18k', 'Laminado', 'Bisutería', 'Accesorios', 'Otro'];
 
@@ -18,6 +18,10 @@ export default function ProductForm({ product, onSave, onClose }) {
   const [precioVenta, setPrecioVenta] = useState(0);
   const [saving, setSaving]           = useState(false);
   const [uploading, setUploading]     = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  // Ref para disparar el input de archivo desde un botón real (funciona en móvil)
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (product) {
@@ -50,6 +54,7 @@ export default function ProductForm({ product, onSave, onClose }) {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
+    setUploadError('');
     const fd = new FormData();
     fd.append('image', file);
     try {
@@ -57,9 +62,16 @@ export default function ProductForm({ product, onSave, onClose }) {
       if (res.ok) {
         const data = await res.json();
         setForm(f => ({ ...f, imagen_url: data.url }));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setUploadError(err.error || 'Error al subir la imagen');
       }
+    } catch {
+      setUploadError('Error de conexión. Intenta de nuevo.');
     } finally {
       setUploading(false);
+      // Resetear el input para poder subir el mismo archivo de nuevo
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -155,18 +167,29 @@ export default function ProductForm({ product, onSave, onClose }) {
             </div>
 
             <div className="form-group form-group--full">
-              <label>Imagen <span style={{fontWeight:400,color:'#9A9A9A'}}>(opcional)</span></label>
+              <label>
+                Imagen <span style={{ fontWeight: 400, color: '#9A9A9A' }}>(opcional)</span>
+              </label>
+
+              {/* Input oculto — disparado por el botón via ref */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                style={{ position: 'absolute', width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
+                tabIndex={-1}
+              />
+
               <div className="upload-row">
-                <label className={`btn btn--outline upload-label${uploading ? ' btn--disabled' : ''}`}>
-                  {uploading ? 'Subiendo...' : '↑ Subir foto'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    disabled={uploading}
-                    style={{ display: 'none' }}
-                  />
-                </label>
+                <button
+                  type="button"
+                  className="btn btn--outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? '⏳ Subiendo...' : '↑ Subir foto'}
+                </button>
                 <span className="upload-sep">o</span>
                 <input
                   name="imagen_url"
@@ -177,6 +200,11 @@ export default function ProductForm({ product, onSave, onClose }) {
                   className="upload-url-input"
                 />
               </div>
+
+              {uploadError && (
+                <p className="form-error" style={{ marginTop: 6 }}>{uploadError}</p>
+              )}
+
               {form.imagen_url && (
                 <img
                   src={form.imagen_url}
