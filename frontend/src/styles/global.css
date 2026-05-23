@@ -881,6 +881,129 @@ body {
   .table td:nth-child(9) { display: none; }
 }
 
+/* ============================================================
+   COTIZAR
+   ============================================================ */
+
+.cotizar-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cotizar-cliente {
+  max-width: 440px;
+}
+
+.cotizar-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: var(--black);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gold-dark);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cotizar-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Print-only elements hidden on screen */
+.print-only { display: none; }
+
+/* ============================================================
+   PRINT STYLES
+   ============================================================ */
+
+@media print {
+  /* Hide everything that's not the quote */
+  .no-print,
+  .header,
+  .notification { display: none !important; }
+
+  .print-only { display: block !important; }
+
+  body {
+    background: white;
+    color: black;
+    font-size: 13px;
+  }
+
+  .main { padding: 0; max-width: 100%; }
+
+  .cotizar-view { gap: 12px; }
+
+  /* Document header */
+  .cotizar-doc__header {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #B8960C;
+    margin-bottom: 12px;
+  }
+
+  .cotizar-doc__brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .cotizar-doc__logo {
+    font-size: 22px;
+    font-weight: 800;
+    color: #B8960C;
+    letter-spacing: 0.06em;
+  }
+
+  .cotizar-doc__sub {
+    font-size: 11px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .cotizar-doc__meta {
+    text-align: right;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #333;
+  }
+
+  /* Table */
+  .table-wrapper { box-shadow: none; border: 1px solid #ddd; border-radius: 0; }
+
+  .table thead tr { background: #1A1A1A !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .table th { color: #D4AF37 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .table td { border-bottom: 1px solid #eee; }
+
+  .tfoot-total td { background: #f9f9f9 !important; border-top: 2px solid #B8960C !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  .code-badge { background: #1A1A1A !important; color: #D4AF37 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Notas y footer */
+  .cotizar-notas {
+    font-size: 12px;
+    color: #444;
+    padding: 10px 0;
+    border-top: 1px solid #ddd;
+  }
+
+  .cotizar-doc__footer {
+    text-align: center;
+    font-size: 11px;
+    color: #888;
+    padding-top: 16px;
+    border-top: 1px solid #ddd;
+    margin-top: 8px;
+  }
+}
+
 @media (max-width: 520px) {
   .cards-grid { grid-template-columns: 1fr; }
   .header__brand .header__subtitle { display: none; }

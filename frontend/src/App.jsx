@@ -5,6 +5,7 @@ import ProductTable from './components/ProductTable';
 import ProductForm from './components/ProductForm';
 import VentasView from './components/VentasView';
 import SaleForm from './components/SaleForm';
+import CotizarView from './components/CotizarView';
 
 export default function App() {
   const [products, setProducts]         = useState([]);
@@ -143,6 +144,10 @@ export default function App() {
 
         {view === 'ventas' && (
           <VentasView onRegister={() => setShowSaleForm(true)} />
+        )}
+
+        {view === 'cotizar' && (
+          <CotizarView products={products} />
         )}
       </main>
 
