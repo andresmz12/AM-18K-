@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ImageLightbox from './ImageLightbox';
 
 const CATEGORIAS = ['Todas', 'Oro 18k', 'Laminado', 'Bisutería', 'Accesorios', 'Otro'];
 
@@ -12,7 +13,7 @@ const catClass = cat => {
   return `categoria-badge cat--${map[cat] || 'otro'}`;
 };
 
-function ImgThumb({ url }) {
+function ImgThumb({ url, onZoom }) {
   const [broken, setBroken] = useState(false);
   if (!url || broken) {
     return <span className="img-placeholder">◈</span>;
@@ -23,8 +24,10 @@ function ImgThumb({ url }) {
       alt=""
       width="44"
       height="44"
-      className="img-thumb"
+      className="img-thumb img-thumb--zoom"
       onError={() => setBroken(true)}
+      onClick={() => onZoom(url)}
+      title="Ver imagen"
     />
   );
 }
@@ -32,8 +35,9 @@ function ImgThumb({ url }) {
 export default function ProductTable({
   products, loading, search, setSearch, categoria, setCategoria, onEdit, onDelete, onAdd
 }) {
-  const [sortCol, setSortCol] = useState(null);
-  const [sortDir, setSortDir] = useState('asc');
+  const [sortCol, setSortCol]       = useState(null);
+  const [sortDir, setSortDir]       = useState('asc');
+  const [lightbox, setLightbox]     = useState(null);
 
   const handleSort = col => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -54,6 +58,7 @@ export default function ProductTable({
 
   return (
     <div className="inventory">
+      {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
       <div className="inventory__header">
         <h2 className="section-title">Inventario</h2>
         <button className="btn btn--primary" onClick={onAdd}>+ Agregar producto</button>
@@ -123,7 +128,7 @@ export default function ProductTable({
                 {sorted.map(p => (
                   <tr key={p.id} className={p.stock <= p.stock_minimo ? 'row--alert' : ''}>
                     <td className="td-foto">
-                      <ImgThumb url={p.imagen_url} />
+                      <ImgThumb url={p.imagen_url} onZoom={setLightbox} />
                     </td>
                     <td>
                       <span className="code-badge">{p.codigo}</span>

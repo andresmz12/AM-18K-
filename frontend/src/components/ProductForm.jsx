@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ImageLightbox from './ImageLightbox';
 
 const CATEGORIAS = ['Oro 18k', 'Laminado', 'Bisutería', 'Accesorios', 'Otro'];
 
@@ -19,6 +20,7 @@ export default function ProductForm({ product, onSave, onClose }) {
   const [saving, setSaving]           = useState(false);
   const [uploading, setUploading]     = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [lightbox, setLightbox]       = useState(false);
 
   // Ref para disparar el input de archivo desde un botón real (funciona en móvil)
   const fileInputRef = useRef(null);
@@ -206,13 +208,20 @@ export default function ProductForm({ product, onSave, onClose }) {
               )}
 
               {form.imagen_url && (
-                <img
-                  src={form.imagen_url}
-                  alt="Preview"
-                  className="img-preview"
-                  onError={e => { e.target.style.display = 'none'; }}
-                  onLoad={e => { e.target.style.display = 'block'; }}
-                />
+                <>
+                  <img
+                    src={form.imagen_url}
+                    alt="Preview"
+                    className="img-preview img-preview--zoom"
+                    onError={e => { e.target.style.display = 'none'; }}
+                    onLoad={e => { e.target.style.display = 'block'; }}
+                    onClick={() => setLightbox(true)}
+                    title="Ver imagen ampliada"
+                  />
+                  {lightbox && (
+                    <ImageLightbox src={form.imagen_url} onClose={() => setLightbox(false)} />
+                  )}
+                </>
               )}
             </div>
 
