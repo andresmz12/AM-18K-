@@ -30,10 +30,26 @@ app.get('/api/products', async (req, res) => {
   }
 
   try {
+    // imagen_url puede ser base64 largo — se devuelve completo para mostrar thumbnails
+    // pero se omite en el SELECT de dashboard para no sobrecargar esa llamada
     const { rows } = await pool.query(
-      `SELECT * FROM products ${where} ORDER BY fecha_creacion DESC`, params
+      `SELECT id, nombre, codigo, categoria, descripcion, peso_gramos,
+              costo, porcentaje_ganancia, precio_venta, stock, stock_minimo,
+              proveedor, notas, imagen_url, fecha_creacion
+       FROM products ${where} ORDER BY fecha_creacion DESC`, params
     );
     res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Devuelve un solo producto con imagen completa (para edición)
+app.get('/api/products/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM products WHERE id = $1', [req.params.id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Producto no encontrado' });
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -237,7 +253,12 @@ app.get('/api/export', async (req, res) => {
     const csvRows = rows.map(p => [
       p.id, p.nombre, p.codigo, p.categoria, p.descripcion,
       p.peso_gramos, p.costo, p.porcentaje_ganancia, p.precio_venta,
-      p.stock, p.stock_minimo, p.proveedor, p.notas, p.imagen_url, p.fecha_creacion
+      p.stock, p.stock_minimo, p.proveedor, p.notas,
+      // No exportar base64 completo — solo indicar si tiene imagen
+      p.imagen_url
+        ? (p.imagen_url.startsWith('data:') ? '[imagen en sistema]' : p.imagen_url)
+        : '',
+      p.fecha_creacion
     ].map(escape).join(','));
     const csv = '﻿' + [headers.join(','), ...csvRows].join('\r\n');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');

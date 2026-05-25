@@ -56,8 +56,18 @@ export default function App() {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  const openAdd   = () => { setEditProduct(null); setShowForm(true); };
-  const openEdit  = product => { setEditProduct(product); setShowForm(true); };
+  const openAdd  = () => { setEditProduct(null); setShowForm(true); };
+  const openEdit = async product => {
+    // Cargar imagen completa antes de abrir el formulario
+    try {
+      const res = await fetch(`/api/products/${product.id}`);
+      if (res.ok) setEditProduct(await res.json());
+      else setEditProduct(product);
+    } catch {
+      setEditProduct(product);
+    }
+    setShowForm(true);
+  };
   const closeForm = () => { setShowForm(false); setEditProduct(null); };
 
   const handleSave = async formData => {

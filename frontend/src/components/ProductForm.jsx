@@ -63,14 +63,23 @@ export default function ProductForm({ product, onSave, onClose }) {
       img.src = ev.target.result;
       img.onerror = reject;
       img.onload = () => {
-        const MAX = 1000;
+        // 800px máx — buen balance entre calidad y tamaño para móvil
+        const MAX = 800;
         let { width, height } = img;
-        if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
+        if (width > height) {
+          if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
+        } else {
+          if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
+        }
         const canvas = document.createElement('canvas');
         canvas.width  = width;
         canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.82));
+        const ctx = canvas.getContext('2d');
+        // Fondo blanco para evitar transparencias negras en JPEG
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.80));
       };
     };
   });
