@@ -1,44 +1,15 @@
 const express = require('express');
 const cors    = require('cors');
 const path    = require('path');
-const fs      = require('fs');
-const multer  = require('multer');
 const { pool, init } = require('./database');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+// Las imágenes viajan como base64 dentro del JSON — aumentar límite a 10 MB
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
-
-// ─── Upload de imágenes ───────────────────────────────────────────────────────
-
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
-
-app.use('/uploads', express.static(uploadsDir));
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename:    (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  }
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB — fotos de celular pueden ser grandes
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Solo se permiten imágenes'));
-  }
-});
-
-app.post('/api/upload', upload.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
-  res.json({ url: `/uploads/${req.file.filename}` });
-});
 
 // ─── Products ────────────────────────────────────────────────────────────────
 

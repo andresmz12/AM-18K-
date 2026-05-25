@@ -52,27 +52,41 @@ export default function ProductForm({ product, onSave, onClose }) {
 
   const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
+  // Comprime la imagen en el navegador y la convierte a base64
+  // Se guarda directo en PostgreSQL → no depende del filesystem de Railway
+  const compressImage = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onerror = reject;
+    reader.onload = ev => {
+      const img = new Image();
+      img.src = ev.target.result;
+      img.onerror = reject;
+      img.onload = () => {
+        const MAX = 1000;
+        let { width, height } = img;
+        if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
+        const canvas = document.createElement('canvas');
+        canvas.width  = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+    };
+  });
+
   const handleImageUpload = async e => {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
     setUploadError('');
-    const fd = new FormData();
-    fd.append('image', file);
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: fd });
-      if (res.ok) {
-        const data = await res.json();
-        setForm(f => ({ ...f, imagen_url: data.url }));
-      } else {
-        const err = await res.json().catch(() => ({}));
-        setUploadError(err.error || 'Error al subir la imagen');
-      }
+      const base64 = await compressImage(file);
+      setForm(f => ({ ...f, imagen_url: base64 }));
     } catch {
-      setUploadError('Error de conexión. Intenta de nuevo.');
+      setUploadError('Error al procesar la imagen. Intenta de nuevo.');
     } finally {
       setUploading(false);
-      // Resetear el input para poder subir el mismo archivo de nuevo
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
