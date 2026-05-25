@@ -34,6 +34,15 @@ async function init() {
       notas           TEXT,
       fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS cotizaciones (
+      id      SERIAL PRIMARY KEY,
+      cliente TEXT,
+      items   JSONB        NOT NULL DEFAULT '[]',
+      total   REAL         NOT NULL DEFAULT 0,
+      notas   TEXT,
+      fecha   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    );
   `);
 }
 

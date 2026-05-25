@@ -269,6 +269,42 @@ app.get('/api/export', async (req, res) => {
   }
 });
 
+// ─── Cotizaciones ─────────────────────────────────────────────────────────────
+
+app.get('/api/cotizaciones', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM cotizaciones ORDER BY fecha DESC');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/cotizaciones', async (req, res) => {
+  const { cliente, items, total, notas } = req.body;
+  if (!Array.isArray(items) || items.length === 0)
+    return res.status(400).json({ error: 'La cotización está vacía' });
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO cotizaciones (cliente, items, total, notas)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [cliente || null, JSON.stringify(items), total || 0, notas || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/cotizaciones/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM cotizaciones WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── SPA fallback ─────────────────────────────────────────────────────────────
 
 app.get('/health', (req, res) => res.json({ ok: true }));
