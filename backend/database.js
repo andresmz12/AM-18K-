@@ -43,6 +43,18 @@ async function init() {
       notas   TEXT,
       fecha   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS kit_sales (
+      id              SERIAL PRIMARY KEY,
+      nombre_kit      TEXT    NOT NULL,
+      componentes     JSONB   NOT NULL DEFAULT '[]',
+      mano_obra       REAL    NOT NULL DEFAULT 0,
+      valor_extra     REAL    NOT NULL DEFAULT 0,
+      total           REAL    NOT NULL,
+      cliente         TEXT,
+      notas           TEXT,
+      fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
 }
 

@@ -211,6 +211,78 @@ app.post('/api/ventas/bulk', async (req, res) => {
   }
 });
 
+// ─── Kit Sales (Manillas y Composiciones) ─────────────────────────────────────
+
+app.get('/api/kit-sales', async (req, res) => {
+  const { periodo = 'hoy' } = req.query;
+  const filtros = {
+    hoy:    "fecha::date = CURRENT_DATE",
+    semana: "fecha >= NOW() - INTERVAL '7 days'",
+    mes:    "DATE_TRUNC('month', fecha) = DATE_TRUNC('month', NOW())"
+  };
+  const where = filtros[periodo] || filtros.hoy;
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM kit_sales WHERE ${where} ORDER BY fecha DESC`
+    );
+    const agg = await pool.query(
+      `SELECT COUNT(*)::int AS c, COALESCE(SUM(total), 0) AS t FROM kit_sales WHERE ${where}`
+    );
+    res.json({ kit_sales: rows, totalVentas: agg.rows[0].c, totalIngresos: parseFloat(agg.rows[0].t) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/kit-sales', async (req, res) => {
+  const { nombre_kit, componentes, mano_obra, valor_extra, cliente, notas } = req.body;
+
+  if (!nombre_kit) return res.status(400).json({ error: 'Nombre del kit requerido' });
+  if (!Array.isArray(componentes) || componentes.length === 0)
+    return res.status(400).json({ error: 'Al menos un componente es requerido' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Validar stock de todos los componentes
+    for (const comp of componentes) {
+      const { rows: [p] } = await client.query(
+        'SELECT * FROM products WHERE id = $1 FOR UPDATE', [comp.producto_id]
+      );
+      if (!p) throw new Error(`Producto no encontrado (id ${comp.producto_id})`);
+      if (p.stock < comp.cantidad)
+        throw new Error(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
+    }
+
+    // Descontar stock de todos los componentes
+    for (const comp of componentes) {
+      await client.query(
+        'UPDATE products SET stock = stock - $1 WHERE id = $2',
+        [comp.cantidad, comp.producto_id]
+      );
+    }
+
+    // Calcular total
+    const total = (mano_obra || 0) + (valor_extra || 0);
+
+    // Guardar la venta del kit
+    const { rows: [kitSale] } = await client.query(
+      `INSERT INTO kit_sales (nombre_kit, componentes, mano_obra, valor_extra, total, cliente, notas)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [nombre_kit, JSON.stringify(componentes), mano_obra || 0, valor_extra || 0, total, cliente || null, notas || null]
+    );
+
+    await client.query('COMMIT');
+    res.status(201).json(kitSale);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(400).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
 // ─── Estadísticas por categoría ───────────────────────────────────────────────
 
 app.get('/api/stats/categorias', async (req, res) => {
