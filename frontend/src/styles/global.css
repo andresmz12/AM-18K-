@@ -849,23 +849,24 @@ body {
 .sale-mode-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 2px solid var(--gray-200);
-  margin: -24px -24px 24px;
+  border-bottom: 3px solid var(--gray-200);
+  margin: -24px -24px 28px;
   padding: 0 24px;
+  background: var(--gray-50);
 }
 
 .sale-mode-tab {
   flex: 1;
-  padding: 14px 16px;
+  padding: 18px 24px;
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 800;
   color: var(--gray-400);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border-bottom: 3px solid transparent;
+  letter-spacing: 0.08em;
+  border-bottom: 4px solid transparent;
   transition: all 0.2s;
   text-align: center;
 }
@@ -877,6 +878,7 @@ body {
 .sale-mode-tab--active {
   color: var(--gold);
   border-bottom-color: var(--gold);
+  background: var(--white);
 }
 
 .sale-subtotal-row {
