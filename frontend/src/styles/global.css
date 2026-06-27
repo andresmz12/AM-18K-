@@ -857,18 +857,21 @@ body {
 
 .sale-mode-tab {
   flex: 1;
-  padding: 18px 24px;
+  padding: 16px 12px;
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 800;
   color: var(--gray-400);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   border-bottom: 4px solid transparent;
   transition: all 0.2s;
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sale-mode-tab:hover {
@@ -879,6 +882,14 @@ body {
   color: var(--gold);
   border-bottom-color: var(--gold);
   background: var(--white);
+}
+
+@media (min-width: 640px) {
+  .sale-mode-tab {
+    font-size: 16px;
+    padding: 18px 24px;
+    letter-spacing: 0.08em;
+  }
 }
 
 .sale-subtotal-row {
