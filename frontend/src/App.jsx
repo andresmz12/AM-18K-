@@ -6,8 +6,6 @@ import ProductForm from './components/ProductForm';
 import VentasView from './components/VentasView';
 import SaleForm from './components/SaleForm';
 import CotizarView from './components/CotizarView';
-import KitSalesView from './components/KitSalesView';
-import KitSaleForm from './components/KitSaleForm';
 
 export default function App() {
   const [products, setProducts]         = useState([]);
@@ -18,7 +16,6 @@ export default function App() {
   const [showForm, setShowForm]         = useState(false);
   const [editProduct, setEditProduct]   = useState(null);
   const [showSaleForm, setShowSaleForm] = useState(false);
-  const [showKitForm, setShowKitForm]   = useState(false);
   const [search, setSearch]             = useState('');
   const [categoria, setCategoria]       = useState('Todas');
   const [tick, setTick]                 = useState(0);
@@ -99,7 +96,10 @@ export default function App() {
   };
 
   const handleSale = async formData => {
-    const res = await fetch('/api/ventas/bulk', {
+    const isKit = formData.tipo === 'kit';
+    const endpoint = isKit ? '/api/kit-sales' : '/api/ventas/bulk';
+
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData)
@@ -107,28 +107,16 @@ export default function App() {
     if (res.ok) {
       setShowSaleForm(false);
       refresh();
-      const data = await res.json();
-      const n = data.ventas.length;
-      notify(`Venta registrada ✓ — ${n} ítem${n !== 1 ? 's' : ''}`);
+      if (isKit) {
+        notify('Kit registrado ✓');
+      } else {
+        const data = await res.json();
+        const n = data.ventas.length;
+        notify(`Venta registrada ✓ — ${n} ítem${n !== 1 ? 's' : ''}`);
+      }
     } else {
       const err = await res.json();
       notify(err.error || 'Error al registrar venta', 'error');
-    }
-  };
-
-  const handleKitSale = async formData => {
-    const res = await fetch('/api/kit-sales', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    });
-    if (res.ok) {
-      setShowKitForm(false);
-      refresh();
-      notify('Kit registrado ✓');
-    } else {
-      const err = await res.json();
-      notify(err.error || 'Error al registrar kit', 'error');
     }
   };
 
@@ -175,10 +163,6 @@ export default function App() {
           <VentasView onRegister={() => setShowSaleForm(true)} />
         )}
 
-        {view === 'kits' && (
-          <KitSalesView onRegister={() => setShowKitForm(true)} />
-        )}
-
         {view === 'cotizar' && (
           <CotizarView products={products} />
         )}
@@ -197,14 +181,6 @@ export default function App() {
           products={products}
           onSave={handleSale}
           onClose={() => setShowSaleForm(false)}
-        />
-      )}
-
-      {showKitForm && (
-        <KitSaleForm
-          products={products}
-          onSave={handleKitSale}
-          onClose={() => setShowKitForm(false)}
         />
       )}
     </div>

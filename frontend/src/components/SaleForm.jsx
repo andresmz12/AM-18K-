@@ -6,13 +6,27 @@ const cop = v =>
   }).format(v || 0);
 
 export default function SaleForm({ products, onSave, onClose }) {
-  const [cart, setCart]               = useState([]);
-  const [productoId, setProductoId]   = useState('');
-  const [cantidad, setCantidad]       = useState('1');
-  const [precio, setPrecio]           = useState('');
-  const [notasGlobal, setNotasGlobal] = useState('');
-  const [saving, setSaving]           = useState(false);
+  const [modo, setModo]                 = useState('simple'); // 'simple' | 'kit'
 
+  // Modo simple
+  const [cart, setCart]                 = useState([]);
+  const [productoId, setProductoId]     = useState('');
+  const [cantidad, setCantidad]         = useState('1');
+  const [precio, setPrecio]             = useState('');
+  const [notasGlobal, setNotasGlobal]   = useState('');
+
+  // Modo kit
+  const [nombreKit, setNombreKit]       = useState('');
+  const [componentes, setComponentes]   = useState([]);
+  const [manoObra, setManoObra]         = useState('');
+  const [valorExtra, setValorExtra]     = useState('');
+  const [cliente, setCliente]           = useState('');
+  const [compProductoId, setCompProductoId] = useState('');
+  const [compCantidad, setCompCantidad] = useState('1');
+
+  const [saving, setSaving]             = useState(false);
+
+  // ─── Modo simple ───────────────────────────────────────────────────────────
   const producto = products.find(p => p.id === Number(productoId));
 
   useEffect(() => {
@@ -46,19 +60,67 @@ export default function SaleForm({ products, onSave, onClose }) {
   };
 
   const removeFromCart = idx => setCart(prev => prev.filter((_, i) => i !== idx));
-
   const totalVenta = cart.reduce((s, i) => s + i.subtotal, 0);
 
+  // ─── Modo kit ──────────────────────────────────────────────────────────────
+  const productoSelec = products.find(p => p.id === Number(compProductoId));
+  const cantidadComp = parseInt(compCantidad) || 0;
+  const stockUsadoComp = productoSelec
+    ? componentes.filter(c => c.producto_id === productoSelec.id).reduce((s, c) => s + c.cantidad, 0)
+    : 0;
+  const stockDisponibleComp = productoSelec ? productoSelec.stock - stockUsadoComp : 0;
+  const stockOkComp = !productoSelec || cantidadComp <= stockDisponibleComp;
+
+  const addComponente = () => {
+    if (!productoSelec || !cantidadComp || !stockOkComp) return;
+    setComponentes(prev => [
+      ...prev,
+      {
+        producto_id: productoSelec.id,
+        nombre: productoSelec.nombre,
+        codigo: productoSelec.codigo,
+        cantidad: cantidadComp,
+        precio_unitario: productoSelec.precio_venta,
+        subtotal: cantidadComp * productoSelec.precio_venta
+      }
+    ]);
+    setCompProductoId('');
+    setCompCantidad('1');
+  };
+
+  const removeComponente = idx => setComponentes(prev => prev.filter((_, i) => i !== idx));
+
+  const totalComponentes = componentes.reduce((s, c) => s + c.subtotal, 0);
+  const manoObraNum = parseFloat(manoObra) || 0;
+  const valorExtraNum = parseFloat(valorExtra) || 0;
+  const totalKit = totalComponentes + manoObraNum + valorExtraNum;
+
+  // ─── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async e => {
     e.preventDefault();
-    if (cart.length === 0) return;
     setSaving(true);
-    await onSave({
-      items: cart.map(({ producto_id, cantidad, precio_unitario }) => ({
-        producto_id, cantidad, precio_unitario
-      })),
-      notas: notasGlobal
-    });
+
+    if (modo === 'simple') {
+      if (cart.length === 0) return;
+      await onSave({
+        items: cart.map(({ producto_id, cantidad, precio_unitario }) => ({
+          producto_id, cantidad, precio_unitario
+        })),
+        notas: notasGlobal
+      });
+    } else {
+      if (!nombreKit || componentes.length === 0 || totalKit <= 0) return;
+      await onSave({
+        tipo: 'kit',
+        nombre_kit: nombreKit,
+        componentes: componentes.map(({ producto_id, cantidad }) => ({ producto_id, cantidad })),
+        mano_obra: manoObraNum,
+        valor_extra: valorExtraNum,
+        cliente: cliente || null,
+        notas: notasGlobal || null
+      });
+    }
+
     setSaving(false);
   };
 
@@ -70,113 +132,316 @@ export default function SaleForm({ products, onSave, onClose }) {
           <button className="modal__close" onClick={onClose} aria-label="Cerrar">✕</button>
         </div>
 
+        {/* ── Tabs ── */}
+        <div className="sale-mode-tabs">
+          <button
+            className={`sale-mode-tab ${modo === 'simple' ? 'sale-mode-tab--active' : ''}`}
+            onClick={() => setModo('simple')}
+          >
+            Venta Simple
+          </button>
+          <button
+            className={`sale-mode-tab ${modo === 'kit' ? 'sale-mode-tab--active' : ''}`}
+            onClick={() => setModo('kit')}
+          >
+            Vender Kit / Manilla
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="form">
 
-          {/* ── Selector de producto ── */}
-          <div className="sale-add-section">
-            <p className="sale-section-label">Agregar productos al carrito</p>
-            <div className="form-grid">
-              <div className="form-group form-group--full">
-                <label>Producto</label>
-                <select value={productoId} onChange={e => setProductoId(e.target.value)}>
-                  <option value="">— Seleccionar producto —</option>
-                  {products.map(p => {
-                    const usado = cart.filter(i => i.producto_id === p.id).reduce((s, i) => s + i.cantidad, 0);
-                    const disp  = p.stock - usado;
-                    return (
-                      <option key={p.id} value={p.id} disabled={disp <= 0}>
-                        [{p.codigo}] {p.nombre} — Stock: {disp}
-                      </option>
-                    );
-                  })}
-                </select>
-                {producto && (
-                  <p className="form-hint">
-                    Disponible: <strong>{stockDisponible}</strong> unidad{stockDisponible !== 1 ? 'es' : ''}
-                  </p>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label>Cantidad</label>
-                <input
-                  type="number" min="1"
-                  max={producto ? stockDisponible : undefined}
-                  value={cantidad}
-                  onChange={e => setCantidad(e.target.value)}
-                />
-                {!stockOk && (
-                  <p className="form-error">Máx. {stockDisponible} disponible{stockDisponible !== 1 ? 's' : ''}</p>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label>Precio Unitario (COP)</label>
-                <input
-                  type="number" min="0" step="0.01"
-                  value={precio}
-                  onChange={e => setPrecio(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="btn btn--outline"
-              onClick={addToCart}
-              disabled={!producto || !cantidadNum || !precioNum || !stockOk}
-            >
-              + Agregar al carrito
-            </button>
-          </div>
-
-          {/* ── Carrito ── */}
-          {cart.length > 0 && (
-            <div className="sale-cart">
-              <p className="sale-section-label">
-                Carrito — {cart.length} ítem{cart.length !== 1 ? 's' : ''}
-              </p>
-              <div className="sale-cart-list">
-                {cart.map((item, i) => (
-                  <div key={i} className="sale-cart-item">
-                    <div className="sale-cart-item__info">
-                      <span className="code-badge">{item.codigo}</span>
-                      <span className="sale-cart-item__name">{item.nombre}</span>
-                    </div>
-                    <div className="sale-cart-item__nums">
-                      <span className="sale-cart-item__detail">
-                        {item.cantidad} × {cop(item.precio_unitario)}
-                      </span>
-                      <strong className="sale-cart-item__sub">{cop(item.subtotal)}</strong>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-icon btn-icon--delete"
-                      onClick={() => removeFromCart(i)}
-                      title="Quitar"
-                    >✕</button>
+          {/* ════════════════════════════════════════════════════════════════════ */}
+          {/* MODO SIMPLE */}
+          {/* ════════════════════════════════════════════════════════════════════ */}
+          {modo === 'simple' && (
+            <>
+              {/* Selector de producto */}
+              <div className="sale-add-section">
+                <p className="sale-section-label">Agregar productos al carrito</p>
+                <div className="form-grid">
+                  <div className="form-group form-group--full">
+                    <label>Producto</label>
+                    <select value={productoId} onChange={e => setProductoId(e.target.value)}>
+                      <option value="">— Seleccionar producto —</option>
+                      {products.map(p => {
+                        const usado = cart.filter(i => i.producto_id === p.id).reduce((s, i) => s + i.cantidad, 0);
+                        const disp  = p.stock - usado;
+                        return (
+                          <option key={p.id} value={p.id} disabled={disp <= 0}>
+                            [{p.codigo}] {p.nombre} — Stock: {disp}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {producto && (
+                      <p className="form-hint">
+                        Disponible: <strong>{stockDisponible}</strong> unidad{stockDisponible !== 1 ? 'es' : ''}
+                      </p>
+                    )}
                   </div>
-                ))}
+
+                  <div className="form-group">
+                    <label>Cantidad</label>
+                    <input
+                      type="number" min="1"
+                      max={producto ? stockDisponible : undefined}
+                      value={cantidad}
+                      onChange={e => setCantidad(e.target.value)}
+                    />
+                    {!stockOk && (
+                      <p className="form-error">Máx. {stockDisponible} disponible{stockDisponible !== 1 ? 's' : ''}</p>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Precio Unitario (COP)</label>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={precio}
+                      onChange={e => setPrecio(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn--outline"
+                  onClick={addToCart}
+                  disabled={!producto || !cantidadNum || !precioNum || !stockOk}
+                >
+                  + Agregar al carrito
+                </button>
               </div>
 
-              <div className="sale-total-row">
-                <span className="sale-total-label">Total a cobrar al cliente</span>
-                <div className="precio-display precio-display--lg">{cop(totalVenta)}</div>
+              {/* Carrito */}
+              {cart.length > 0 && (
+                <div className="sale-cart">
+                  <p className="sale-section-label">
+                    Carrito — {cart.length} ítem{cart.length !== 1 ? 's' : ''}
+                  </p>
+                  <div className="sale-cart-list">
+                    {cart.map((item, i) => (
+                      <div key={i} className="sale-cart-item">
+                        <div className="sale-cart-item__info">
+                          <span className="code-badge">{item.codigo}</span>
+                          <span className="sale-cart-item__name">{item.nombre}</span>
+                        </div>
+                        <div className="sale-cart-item__nums">
+                          <span className="sale-cart-item__detail">
+                            {item.cantidad} × {cop(item.precio_unitario)}
+                          </span>
+                          <strong className="sale-cart-item__sub">{cop(item.subtotal)}</strong>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-icon btn-icon--delete"
+                          onClick={() => removeFromCart(i)}
+                          title="Quitar"
+                        >✕</button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="sale-total-row">
+                    <span className="sale-total-label">Total a cobrar al cliente</span>
+                    <div className="precio-display precio-display--lg">{cop(totalVenta)}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Notas */}
+              <div className="form-group">
+                <label>Notas</label>
+                <textarea
+                  value={notasGlobal}
+                  onChange={e => setNotasGlobal(e.target.value)}
+                  rows={2}
+                  placeholder="Cliente, forma de pago, etc."
+                />
               </div>
-            </div>
+            </>
           )}
 
-          {/* ── Notas ── */}
-          <div className="form-group">
-            <label>Notas</label>
-            <textarea
-              value={notasGlobal}
-              onChange={e => setNotasGlobal(e.target.value)}
-              rows={2}
-              placeholder="Cliente, forma de pago, etc."
-            />
-          </div>
+          {/* ════════════════════════════════════════════════════════════════════ */}
+          {/* MODO KIT */}
+          {/* ════════════════════════════════════════════════════════════════════ */}
+          {modo === 'kit' && (
+            <>
+              {/* Nombre kit */}
+              <div className="form-group form-group--full">
+                <label>Nombre del Kit / Manilla</label>
+                <input
+                  type="text"
+                  value={nombreKit}
+                  onChange={e => setNombreKit(e.target.value)}
+                  placeholder="Ej: Manilla Oro 18K con Dije"
+                />
+              </div>
 
+              {/* Agregar componentes */}
+              <div className="sale-add-section">
+                <p className="sale-section-label">Agregar componentes</p>
+                <div className="form-grid">
+                  <div className="form-group form-group--full">
+                    <label>Componente (balines, dijes, herrajes, etc.)</label>
+                    <select value={compProductoId} onChange={e => setCompProductoId(e.target.value)}>
+                      <option value="">— Seleccionar componente —</option>
+                      {products.map(p => {
+                        const usado = componentes.filter(c => c.producto_id === p.id).reduce((s, c) => s + c.cantidad, 0);
+                        const disp  = p.stock - usado;
+                        return (
+                          <option key={p.id} value={p.id} disabled={disp <= 0}>
+                            [{p.codigo}] {p.nombre} — Stock: {disp}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {productoSelec && (
+                      <p className="form-hint">
+                        Disponible: <strong>{stockDisponibleComp}</strong> unidad{stockDisponibleComp !== 1 ? 'es' : ''}
+                        {productoSelec.precio_venta > 0 && (
+                          <span> — Precio: {cop(productoSelec.precio_venta)}</span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Cantidad</label>
+                    <input
+                      type="number" min="1"
+                      max={productoSelec ? stockDisponibleComp : undefined}
+                      value={compCantidad}
+                      onChange={e => setCompCantidad(e.target.value)}
+                    />
+                    {!stockOkComp && (
+                      <p className="form-error">Máx. {stockDisponibleComp} disponible{stockDisponibleComp !== 1 ? 's' : ''}</p>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn--outline"
+                  onClick={addComponente}
+                  disabled={!productoSelec || !cantidadComp || !stockOkComp}
+                >
+                  + Agregar componente
+                </button>
+              </div>
+
+              {/* Lista componentes */}
+              {componentes.length > 0 && (
+                <div className="sale-cart">
+                  <p className="sale-section-label">
+                    Componentes — {componentes.length} ítem{componentes.length !== 1 ? 's' : ''}
+                  </p>
+                  <div className="sale-cart-list">
+                    {componentes.map((comp, i) => (
+                      <div key={i} className="sale-cart-item">
+                        <div className="sale-cart-item__info">
+                          <span className="code-badge">{comp.codigo}</span>
+                          <span className="sale-cart-item__name">{comp.nombre}</span>
+                        </div>
+                        <div className="sale-cart-item__nums">
+                          <span className="sale-cart-item__detail">
+                            {comp.cantidad} × {cop(comp.precio_unitario)}
+                          </span>
+                          <strong className="sale-cart-item__sub">{cop(comp.subtotal)}</strong>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-icon btn-icon--delete"
+                          onClick={() => removeComponente(i)}
+                          title="Quitar"
+                        >✕</button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {componentes.length > 0 && (
+                    <div className="sale-subtotal-row">
+                      <span className="sale-total-label">Subtotal componentes</span>
+                      <div className="precio-display">{cop(totalComponentes)}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Mano de obra y extras */}
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Mano de obra (COP)</label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={manoObra}
+                    onChange={e => setManoObra(e.target.value)}
+                    placeholder="Costo de ensamblaje"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Valor extra (COP)</label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={valorExtra}
+                    onChange={e => setValorExtra(e.target.value)}
+                    placeholder="Recargo, detalles especiales, etc."
+                  />
+                </div>
+              </div>
+
+              {/* Cliente */}
+              <div className="form-group form-group--full">
+                <label>Cliente (opcional)</label>
+                <input
+                  type="text"
+                  value={cliente}
+                  onChange={e => setCliente(e.target.value)}
+                  placeholder="Nombre del cliente"
+                />
+              </div>
+
+              {/* Notas */}
+              <div className="form-group">
+                <label>Notas (opcional)</label>
+                <textarea
+                  value={notasGlobal}
+                  onChange={e => setNotasGlobal(e.target.value)}
+                  rows={2}
+                  placeholder="Observaciones, forma de pago, etc."
+                />
+              </div>
+
+              {/* Total desglosado */}
+              {componentes.length > 0 && (
+                <div className="sale-total-breakdown">
+                  <div className="total-row">
+                    <span>Componentes:</span>
+                    <span>{cop(totalComponentes)}</span>
+                  </div>
+                  {manoObraNum > 0 && (
+                    <div className="total-row">
+                      <span>Mano de obra:</span>
+                      <span>{cop(manoObraNum)}</span>
+                    </div>
+                  )}
+                  {valorExtraNum > 0 && (
+                    <div className="total-row">
+                      <span>Valor extra:</span>
+                      <span>{cop(valorExtraNum)}</span>
+                    </div>
+                  )}
+                  <div className="sale-total-row">
+                    <span className="sale-total-label">Total a cobrar</span>
+                    <div className="precio-display precio-display--lg">{cop(totalKit)}</div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ─── Acciones comunes ─── */}
           <div className="form-actions">
             <button type="button" className="btn btn--outline" onClick={onClose}>
               Cancelar
@@ -184,13 +449,17 @@ export default function SaleForm({ products, onSave, onClose }) {
             <button
               type="submit"
               className="btn btn--primary"
-              disabled={saving || cart.length === 0}
+              disabled={
+                saving ||
+                (modo === 'simple' && cart.length === 0) ||
+                (modo === 'kit' && (!nombreKit || componentes.length === 0 || totalKit <= 0))
+              }
             >
               {saving
                 ? 'Registrando...'
-                : cart.length === 0
-                  ? 'Registrar Venta'
-                  : `Registrar Venta (${cart.length} ítem${cart.length !== 1 ? 's' : ''})`}
+                : modo === 'simple'
+                  ? `Registrar Venta (${cart.length} ítem${cart.length !== 1 ? 's' : ''})`
+                  : `Registrar Kit (${componentes.length} componentes)`}
             </button>
           </div>
         </form>
