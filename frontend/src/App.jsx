@@ -6,6 +6,8 @@ import ProductForm from './components/ProductForm';
 import VentasView from './components/VentasView';
 import SaleForm from './components/SaleForm';
 import CotizarView from './components/CotizarView';
+import KitSalesView from './components/KitSalesView';
+import KitSaleForm from './components/KitSaleForm';
 
 export default function App() {
   const [products, setProducts]         = useState([]);
@@ -16,6 +18,7 @@ export default function App() {
   const [showForm, setShowForm]         = useState(false);
   const [editProduct, setEditProduct]   = useState(null);
   const [showSaleForm, setShowSaleForm] = useState(false);
+  const [showKitForm, setShowKitForm]   = useState(false);
   const [search, setSearch]             = useState('');
   const [categoria, setCategoria]       = useState('Todas');
   const [tick, setTick]                 = useState(0);
@@ -113,6 +116,22 @@ export default function App() {
     }
   };
 
+  const handleKitSale = async formData => {
+    const res = await fetch('/api/kit-sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
+    });
+    if (res.ok) {
+      setShowKitForm(false);
+      refresh();
+      notify('Kit registrado ✓');
+    } else {
+      const err = await res.json();
+      notify(err.error || 'Error al registrar kit', 'error');
+    }
+  };
+
   return (
     <div className="app">
       <Header
@@ -156,6 +175,10 @@ export default function App() {
           <VentasView onRegister={() => setShowSaleForm(true)} />
         )}
 
+        {view === 'kits' && (
+          <KitSalesView onRegister={() => setShowKitForm(true)} />
+        )}
+
         {view === 'cotizar' && (
           <CotizarView products={products} />
         )}
@@ -174,6 +197,14 @@ export default function App() {
           products={products}
           onSave={handleSale}
           onClose={() => setShowSaleForm(false)}
+        />
+      )}
+
+      {showKitForm && (
+        <KitSaleForm
+          products={products}
+          onSave={handleKitSale}
+          onClose={() => setShowKitForm(false)}
         />
       )}
     </div>
