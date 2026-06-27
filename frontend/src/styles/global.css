@@ -1045,6 +1045,14 @@ body {
   .table td:nth-child(6),
   .table th:nth-child(9),
   .table td:nth-child(9) { display: none; }
+
+  /* Ventas table on tablet - hide less important columns */
+  .ventas-view .table th:nth-child(3),
+  .ventas-view .table td:nth-child(3),
+  .ventas-view .table th:nth-child(4),
+  .ventas-view .table td:nth-child(4),
+  .ventas-view .table th:nth-child(6),
+  .ventas-view .table td:nth-child(6) { display: none; }
 }
 
 /* ============================================================
@@ -1262,7 +1270,7 @@ body {
 @media (max-width: 520px) {
   .cards-grid { grid-template-columns: 1fr; }
   .header__brand .header__subtitle { display: none; }
-  .inventory__header .btn { display: none; }
+  .btn--hide-mobile { display: none; }
   .ventas-toolbar { flex-direction: column; align-items: flex-start; gap: 12px; }
 
   /* Mobile form improvements */
@@ -1290,4 +1298,17 @@ body {
   /* Sale mode tabs mobile */
   .sale-mode-tabs { margin: -16px -16px 20px; padding: 0 16px; }
   .sale-mode-tab { padding: 12px 8px; font-size: 12px; }
+
+  /* Ventas resumen mobile */
+  .ventas-resumen {
+    flex-direction: column;
+    align-items: flex-start;
+    font-size: 12px;
+    gap: 6px;
+  }
+  .ventas-resumen__sep { display: none; }
+
+  /* Table improvements */
+  .table th, .table td { padding: 10px 12px; font-size: 12px; }
+  .td-fecha { font-size: 12px; }
 }

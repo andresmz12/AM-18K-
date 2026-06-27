@@ -61,7 +61,7 @@ export default function ProductTable({
       {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
       <div className="inventory__header">
         <h2 className="section-title">Inventario</h2>
-        <button className="btn btn--primary" onClick={onAdd}>+ Agregar producto</button>
+        <button className="btn btn--primary btn--hide-mobile" onClick={onAdd}>+ Agregar producto</button>
       </div>
 
       <div className="filters">
