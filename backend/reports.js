@@ -237,7 +237,8 @@ async function generarReporte(req, res, tipo) {
     if (formato === 'pdf') enviarPdf(res, tipo, filas, empresaNombre);
     else await enviarExcel(res, tipo, filas, empresaNombre);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    if (!res.headersSent) res.status(500).json({ error: 'Error al generar el reporte' });
   }
 }
 

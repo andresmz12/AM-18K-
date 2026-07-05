@@ -1,17 +1,53 @@
 const express = require('express');
-const cors    = require('cors');
+const helmet  = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path    = require('path');
 const { pool, init } = require('./database');
-const { hashPassword, comparePassword, signToken, requireAuth, requireGerente, requireSuperadmin } = require('./auth');
+const { hashPassword, comparePassword, signToken, safeEqual, requireAuth, requireGerente, requireSuperadmin } = require('./auth');
 const { generarReporte } = require('./reports');
+const V = require('./validate');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// Railway corre detrás de un proxy — necesario para que req.ip sea la IP real
+app.set('trust proxy', 1);
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      // Las fotos de producto pueden ser base64 (data:) o URLs externas
+      'img-src': ["'self'", 'data:', 'https:', 'http:']
+    }
+  }
+}));
+
+// Frontend y API comparten origen (el backend sirve el build) — no se necesita CORS.
 // Las imágenes viajan como base64 dentro del JSON — aumentar límite a 10 MB
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+// Límite de intentos para login/registro/setup — frena fuerza bruta de contraseñas
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' }
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/signup', authLimiter);
+app.use('/api/setup', authLimiter);
+
+// Los errores internos se registran en el log pero nunca se envían al cliente
+const serverError = (res, err) => {
+  console.error(err);
+  res.status(500).json({ error: 'Error interno del servidor' });
+};
+
+// Error de negocio: su mensaje SÍ es seguro de mostrar al usuario
+const bizError = msg => Object.assign(new Error(msg), { biz: true });
 
 // Oculta campos financieros (costo, ganancia) a usuarios con rol "empleado"
 const stripCosts = (row, rol) => {
@@ -23,11 +59,13 @@ const stripCosts = (row, rol) => {
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 app.post('/api/auth/signup', async (req, res) => {
-  const { empresa_nombre, nombre, email, password } = req.body;
-  if (!empresa_nombre || !nombre || !email || !password)
-    return res.status(400).json({ error: 'Todos los campos son requeridos' });
-  if (password.length < 6)
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  const empresa_nombre = V.str(req.body.empresa_nombre, 120);
+  const nombre         = V.str(req.body.nombre, 120);
+  const email          = V.email(req.body.email);
+  const password       = V.password(req.body.password);
+  if (!empresa_nombre || !nombre) return res.status(400).json({ error: 'Nombre de la joyería y tu nombre son requeridos' });
+  if (!email) return res.status(400).json({ error: 'Correo electrónico inválido' });
+  if (!password) return res.status(400).json({ error: 'La contraseña debe tener entre 6 y 100 caracteres' });
 
   const client = await pool.connect();
   try {
@@ -39,7 +77,7 @@ app.post('/api/auth/signup', async (req, res) => {
     const { rows: [usuario] } = await client.query(
       `INSERT INTO usuarios (empresa_id, nombre, email, password_hash, rol)
        VALUES ($1, $2, $3, $4, 'gerente') RETURNING *`,
-      [empresa.id, nombre, email.toLowerCase(), password_hash]
+      [empresa.id, nombre, email, password_hash]
     );
     await client.query('COMMIT');
     const token = signToken(usuario);
@@ -49,7 +87,8 @@ app.post('/api/auth/signup', async (req, res) => {
     });
   } catch (err) {
     await client.query('ROLLBACK');
-    const msg = err.code === '23505' ? 'Ese correo ya está registrado' : err.message;
+    if (err.code !== '23505') console.error(err);
+    const msg = err.code === '23505' ? 'Ese correo ya está registrado' : 'Error al procesar la solicitud';
     res.status(400).json({ error: msg });
   } finally {
     client.release();
@@ -57,26 +96,28 @@ app.post('/api/auth/signup', async (req, res) => {
 });
 
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+  const email = V.email(req.body.email);
+  const password = typeof req.body.password === 'string' ? req.body.password : null;
   if (!email || !password) return res.status(400).json({ error: 'Correo y contraseña requeridos' });
   try {
     const { rows: [usuario] } = await pool.query(
       `SELECT u.*, e.nombre AS empresa_nombre, e.activa AS empresa_activa FROM usuarios u
        JOIN empresas e ON e.id = u.empresa_id
-       WHERE u.email = $1`, [email.toLowerCase()]
+       WHERE u.email = $1`, [email]
     );
     if (!usuario || !usuario.activo) return res.status(401).json({ error: 'Credenciales inválidas' });
-    if (usuario.rol !== 'superadmin' && !usuario.empresa_activa)
-      return res.status(403).json({ error: 'Esta cuenta está suspendida. Contacta a soporte.' });
     const ok = await comparePassword(password, usuario.password_hash);
     if (!ok) return res.status(401).json({ error: 'Credenciales inválidas' });
+    // Solo después de validar la contraseña se revela el estado de suspensión
+    if (usuario.rol !== 'superadmin' && !usuario.empresa_activa)
+      return res.status(403).json({ error: 'Esta cuenta está suspendida. Contacta a soporte.' });
     const token = signToken(usuario);
     res.json({
       token,
       user: { id: usuario.id, nombre: usuario.nombre, email: usuario.email, rol: usuario.rol, empresa_id: usuario.empresa_id, empresa_nombre: usuario.empresa_nombre }
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -90,7 +131,7 @@ app.get('/api/auth/me', requireAuth, async (req, res) => {
     if (!usuario) return res.status(401).json({ error: 'Usuario no encontrado' });
     res.json({ user: usuario });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -99,7 +140,7 @@ app.get('/api/auth/me', requireAuth, async (req, res) => {
 // en Railway, esta ruta siempre responde 404 y no hace nada.
 app.get('/api/setup/superadmin', async (req, res) => {
   const { secret, nombre, email, password } = req.query;
-  if (!process.env.SETUP_SECRET || secret !== process.env.SETUP_SECRET) {
+  if (!process.env.SETUP_SECRET || !secret || !safeEqual(secret, process.env.SETUP_SECRET)) {
     return res.status(404).send('Not found');
   }
   if (!nombre || !email || !password) return res.status(400).send('Faltan parámetros: nombre, email, password');
@@ -124,7 +165,8 @@ app.get('/api/setup/superadmin', async (req, res) => {
     );
     res.send(`Listo. Cuenta de superadmin creada/actualizada para ${email}. Ya puedes iniciar sesión en la app con ese correo. Por seguridad, ahora borra la variable SETUP_SECRET en Railway.`);
   } catch (err) {
-    res.status(500).send('Error: ' + err.message);
+    console.error(err);
+    res.status(500).send('Error interno');
   }
 });
 
@@ -145,7 +187,7 @@ app.get('/api/platform/empresas', requireSuperadmin, async (req, res) => {
     `);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -159,16 +201,19 @@ app.patch('/api/platform/empresas/:id', requireSuperadmin, async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'Empresa no encontrada' });
     res.json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 // Crea una joyería nueva junto con su primer usuario gerente (alta asistida por el superadmin)
 app.post('/api/platform/empresas', requireSuperadmin, async (req, res) => {
-  const { empresa_nombre, nombre, email, password } = req.body;
-  if (!empresa_nombre || !nombre || !email || !password)
-    return res.status(400).json({ error: 'Todos los campos son requeridos' });
-  if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  const empresa_nombre = V.str(req.body.empresa_nombre, 120);
+  const nombre         = V.str(req.body.nombre, 120);
+  const email          = V.email(req.body.email);
+  const password       = V.password(req.body.password);
+  if (!empresa_nombre || !nombre) return res.status(400).json({ error: 'Todos los campos son requeridos' });
+  if (!email) return res.status(400).json({ error: 'Correo electrónico inválido' });
+  if (!password) return res.status(400).json({ error: 'La contraseña debe tener entre 6 y 100 caracteres' });
 
   const client = await pool.connect();
   try {
@@ -180,13 +225,14 @@ app.post('/api/platform/empresas', requireSuperadmin, async (req, res) => {
     await client.query(
       `INSERT INTO usuarios (empresa_id, nombre, email, password_hash, rol)
        VALUES ($1, $2, $3, $4, 'gerente')`,
-      [empresa.id, nombre, email.toLowerCase(), password_hash]
+      [empresa.id, nombre, email, password_hash]
     );
     await client.query('COMMIT');
     res.status(201).json({ ...empresa, total_usuarios: 1, total_productos: 0 });
   } catch (err) {
     await client.query('ROLLBACK');
-    const msg = err.code === '23505' ? 'Ese correo ya está registrado' : err.message;
+    if (err.code !== '23505') console.error(err);
+    const msg = err.code === '23505' ? 'Ese correo ya está registrado' : 'Error al procesar la solicitud';
     res.status(400).json({ error: msg });
   } finally {
     client.release();
@@ -201,15 +247,19 @@ app.get('/api/platform/empresas/:id/usuarios', requireSuperadmin, async (req, re
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 // Crea un usuario (gerente o empleado) dentro de cualquier joyería existente
 app.post('/api/platform/empresas/:id/usuarios', requireSuperadmin, async (req, res) => {
-  const { nombre, email, password, rol = 'empleado' } = req.body;
-  if (!nombre || !email || !password) return res.status(400).json({ error: 'Nombre, correo y contraseña requeridos' });
-  if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  const nombre   = V.str(req.body.nombre, 120);
+  const email    = V.email(req.body.email);
+  const password = V.password(req.body.password);
+  const rol      = req.body.rol || 'empleado';
+  if (!nombre) return res.status(400).json({ error: 'Nombre requerido' });
+  if (!email) return res.status(400).json({ error: 'Correo electrónico inválido' });
+  if (!password) return res.status(400).json({ error: 'La contraseña debe tener entre 6 y 100 caracteres' });
   if (!['gerente', 'empleado'].includes(rol)) return res.status(400).json({ error: 'Rol inválido' });
   try {
     const { rows: [empresa] } = await pool.query('SELECT id FROM empresas WHERE id = $1', [req.params.id]);
@@ -219,11 +269,12 @@ app.post('/api/platform/empresas/:id/usuarios', requireSuperadmin, async (req, r
       `INSERT INTO usuarios (empresa_id, nombre, email, password_hash, rol)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id, nombre, email, rol, activo, fecha_creacion`,
-      [req.params.id, nombre, email.toLowerCase(), password_hash, rol]
+      [req.params.id, nombre, email, password_hash, rol]
     );
     res.status(201).json(usuario);
   } catch (err) {
-    const msg = err.code === '23505' ? 'Ese correo ya está registrado' : err.message;
+    if (err.code !== '23505') console.error(err);
+    const msg = err.code === '23505' ? 'Ese correo ya está registrado' : 'Error al procesar la solicitud';
     res.status(400).json({ error: msg });
   }
 });
@@ -238,14 +289,18 @@ app.get('/api/users', requireGerente, async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 app.post('/api/users', requireGerente, async (req, res) => {
-  const { nombre, email, password, rol = 'empleado' } = req.body;
-  if (!nombre || !email || !password) return res.status(400).json({ error: 'Nombre, correo y contraseña requeridos' });
-  if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  const nombre   = V.str(req.body.nombre, 120);
+  const email    = V.email(req.body.email);
+  const password = V.password(req.body.password);
+  const rol      = req.body.rol || 'empleado';
+  if (!nombre) return res.status(400).json({ error: 'Nombre requerido' });
+  if (!email) return res.status(400).json({ error: 'Correo electrónico inválido' });
+  if (!password) return res.status(400).json({ error: 'La contraseña debe tener entre 6 y 100 caracteres' });
   if (!['gerente', 'empleado'].includes(rol)) return res.status(400).json({ error: 'Rol inválido' });
   try {
     const password_hash = await hashPassword(password);
@@ -253,11 +308,12 @@ app.post('/api/users', requireGerente, async (req, res) => {
       `INSERT INTO usuarios (empresa_id, nombre, email, password_hash, rol)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id, nombre, email, rol, activo, fecha_creacion`,
-      [req.user.empresa_id, nombre, email.toLowerCase(), password_hash, rol]
+      [req.user.empresa_id, nombre, email, password_hash, rol]
     );
     res.status(201).json(usuario);
   } catch (err) {
-    const msg = err.code === '23505' ? 'Ese correo ya está registrado' : err.message;
+    if (err.code !== '23505') console.error(err);
+    const msg = err.code === '23505' ? 'Ese correo ya está registrado' : 'Error al procesar la solicitud';
     res.status(400).json({ error: msg });
   }
 });
@@ -280,7 +336,7 @@ app.delete('/api/users/:id', requireGerente, async (req, res) => {
     await pool.query('DELETE FROM usuarios WHERE id = $1', [id]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -313,7 +369,7 @@ app.get('/api/products', async (req, res) => {
     );
     res.json(rows.map(r => stripCosts(r, req.user.rol)));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -326,7 +382,7 @@ app.get('/api/products/:id', async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json(stripCosts(rows[0], req.user.rol));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -360,7 +416,7 @@ app.get('/api/dashboard', async (req, res) => {
     }
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -401,13 +457,40 @@ app.get('/api/dashboard/graficos', requireGerente, async (req, res) => {
       topProductos: topProductos.rows.map(r => ({ ...r, ingresos: parseFloat(r.ingresos) }))
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
+// Valida y normaliza el cuerpo de producto; devuelve {error} o {valores}
+function validarProducto(f) {
+  const nombre = V.str(f.nombre, 200);
+  const codigo = V.str(f.codigo, 60);
+  if (!nombre || !codigo) return { error: 'Nombre y código son requeridos' };
+  const costo  = V.num(f.costo ?? 0);
+  const pct    = V.num(f.porcentaje_ganancia ?? 0, { max: 10000 });
+  const peso   = f.peso_gramos == null || f.peso_gramos === '' ? null : V.num(f.peso_gramos, { max: 1e6 });
+  const stock  = V.int(f.stock ?? 0);
+  const stockMin = V.int(f.stock_minimo ?? 1);
+  if (costo === null || pct === null) return { error: 'Costo y % de ganancia deben ser números positivos' };
+  if (peso === undefined) return { error: 'Peso inválido' };
+  if (stock === null || stockMin === null) return { error: 'Stock y stock mínimo deben ser enteros positivos' };
+  const descripcion = V.optStr(f.descripcion, 2000);
+  const proveedor   = V.optStr(f.proveedor, 200);
+  const notas       = V.optStr(f.notas, 2000);
+  const imagen_url  = V.imagen(f.imagen_url);
+  if (descripcion === undefined || proveedor === undefined || notas === undefined) return { error: 'Texto demasiado largo' };
+  if (imagen_url === undefined) return { error: 'Imagen inválida (debe ser una foto o una URL http/https)' };
+  return {
+    nombre, codigo, categoria: V.str(f.categoria, 60) || 'Otro', descripcion,
+    peso_gramos: peso, costo, porcentaje_ganancia: pct,
+    precio_venta: costo * (1 + pct / 100),
+    stock, stock_minimo: stockMin, proveedor, notas, imagen_url
+  };
+}
+
 app.post('/api/products', requireGerente, async (req, res) => {
-  const f = req.body;
-  const precio_venta = (f.costo || 0) * (1 + (f.porcentaje_ganancia || 0) / 100);
+  const f = validarProducto(req.body);
+  if (f.error) return res.status(400).json({ error: f.error });
   try {
     const { rows } = await pool.query(`
       INSERT INTO products
@@ -417,22 +500,23 @@ app.post('/api/products', requireGerente, async (req, res) => {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *
     `, [
-      req.user.empresa_id, f.nombre, f.codigo, f.categoria || 'Otro', f.descripcion || null,
-      f.peso_gramos || null, f.costo || 0, f.porcentaje_ganancia || 0,
-      precio_venta, f.stock || 0, f.stock_minimo || 1,
-      f.proveedor || null, f.notas || null, f.imagen_url || null
+      req.user.empresa_id, f.nombre, f.codigo, f.categoria, f.descripcion,
+      f.peso_gramos, f.costo, f.porcentaje_ganancia,
+      f.precio_venta, f.stock, f.stock_minimo,
+      f.proveedor, f.notas, f.imagen_url
     ]);
     res.status(201).json(rows[0]);
   } catch (err) {
-    const msg = err.code === '23505' ? 'El código ya existe' : err.message;
+    if (err.code !== '23505') console.error(err);
+    const msg = err.code === '23505' ? 'El código ya existe' : 'Error al procesar la solicitud';
     res.status(400).json({ error: msg });
   }
 });
 
 app.put('/api/products/:id', requireGerente, async (req, res) => {
   const { id } = req.params;
-  const f = req.body;
-  const precio_venta = (f.costo || 0) * (1 + (f.porcentaje_ganancia || 0) / 100);
+  const f = validarProducto(req.body);
+  if (f.error) return res.status(400).json({ error: f.error });
   try {
     const { rows } = await pool.query(`
       UPDATE products SET
@@ -442,15 +526,16 @@ app.put('/api/products/:id', requireGerente, async (req, res) => {
       WHERE id=$14 AND empresa_id=$15
       RETURNING *
     `, [
-      f.nombre, f.codigo, f.categoria || 'Otro', f.descripcion || null,
-      f.peso_gramos || null, f.costo || 0, f.porcentaje_ganancia || 0,
-      precio_venta, f.stock || 0, f.stock_minimo || 1,
-      f.proveedor || null, f.notas || null, f.imagen_url || null, id, req.user.empresa_id
+      f.nombre, f.codigo, f.categoria, f.descripcion,
+      f.peso_gramos, f.costo, f.porcentaje_ganancia,
+      f.precio_venta, f.stock, f.stock_minimo,
+      f.proveedor, f.notas, f.imagen_url, id, req.user.empresa_id
     ]);
     if (!rows[0]) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json(rows[0]);
   } catch (err) {
-    const msg = err.code === '23505' ? 'El código ya existe' : err.message;
+    if (err.code !== '23505') console.error(err);
+    const msg = err.code === '23505' ? 'El código ya existe' : 'Error al procesar la solicitud';
     res.status(400).json({ error: msg });
   }
 });
@@ -460,7 +545,7 @@ app.delete('/api/products/:id', requireGerente, async (req, res) => {
     await pool.query('DELETE FROM products WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -487,7 +572,7 @@ app.get('/api/ventas', async (req, res) => {
     );
     res.json({ ventas: rows, totalVentas: agg.rows[0].c, totalIngresos: parseFloat(agg.rows[0].t) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -495,12 +580,12 @@ app.get('/api/ventas', async (req, res) => {
 
 app.post('/api/ventas/bulk', async (req, res) => {
   const { items, notas } = req.body;
-  if (!Array.isArray(items) || items.length === 0)
-    return res.status(400).json({ error: 'Se requiere al menos un producto' });
+  if (!Array.isArray(items) || items.length === 0 || items.length > 200)
+    return res.status(400).json({ error: 'Se requiere entre 1 y 200 productos' });
   for (const item of items) {
-    if (!item.producto_id || !Number.isInteger(item.cantidad) || item.cantidad < 1)
+    if (!item.producto_id || V.int(item.cantidad, { min: 1, max: 100000 }) === null)
       return res.status(400).json({ error: 'Datos de ítem inválidos' });
-    if (typeof item.precio_unitario !== 'number' || item.precio_unitario < 0)
+    if (V.num(item.precio_unitario) === null)
       return res.status(400).json({ error: 'Precio unitario inválido' });
   }
 
@@ -514,8 +599,8 @@ app.post('/api/ventas/bulk', async (req, res) => {
       const { rows: [p] } = await client.query(
         'SELECT * FROM products WHERE id = $1 AND empresa_id = $2 FOR UPDATE', [producto_id, empresaId]
       );
-      if (!p) throw new Error(`Producto no encontrado (id ${producto_id})`);
-      if (p.stock < cantidad) throw new Error(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
+      if (!p) throw bizError(`Producto no encontrado (id ${producto_id})`);
+      if (p.stock < cantidad) throw bizError(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
       const total = cantidad * precio_unitario;
       const { rows: [venta] } = await client.query(
         `INSERT INTO ventas (empresa_id, producto_id, cantidad, precio_unitario, total, notas, usuario_id)
@@ -534,7 +619,8 @@ app.post('/api/ventas/bulk', async (req, res) => {
     res.status(201).json({ ventas: resultados, total: resultados.reduce((s, v) => s + v.total, 0) });
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(400).json({ error: err.message });
+    if (err.biz) return res.status(400).json({ error: err.message });
+    serverError(res, err);
   } finally {
     client.release();
   }
@@ -561,19 +647,28 @@ app.get('/api/kit-sales', async (req, res) => {
     );
     res.json({ kit_sales: rows, totalVentas: agg.rows[0].c, totalIngresos: parseFloat(agg.rows[0].t) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 app.post('/api/kit-sales', async (req, res) => {
-  const { nombre_kit, componentes, mano_obra, valor_extra, cliente, notas } = req.body;
+  const nombre_kit = V.str(req.body.nombre_kit, 200);
+  const { componentes } = req.body;
+  const mano_obra   = V.num(req.body.mano_obra ?? 0);
+  const valor_extra = V.num(req.body.valor_extra ?? 0);
+  const cliente     = V.optStr(req.body.cliente, 200);
+  const notas       = V.optStr(req.body.notas, 2000);
   const empresaId = req.user.empresa_id;
 
   if (!nombre_kit) return res.status(400).json({ error: 'Nombre del kit requerido' });
-  if (!Array.isArray(componentes) || componentes.length === 0)
-    return res.status(400).json({ error: 'Al menos un componente es requerido' });
+  if (mano_obra === null || valor_extra === null)
+    return res.status(400).json({ error: 'Mano de obra y valor extra deben ser números positivos' });
+  if (cliente === undefined || notas === undefined)
+    return res.status(400).json({ error: 'Texto demasiado largo' });
+  if (!Array.isArray(componentes) || componentes.length === 0 || componentes.length > 200)
+    return res.status(400).json({ error: 'Se requiere entre 1 y 200 componentes' });
   for (const comp of componentes) {
-    if (!comp.producto_id || !Number.isInteger(comp.cantidad) || comp.cantidad < 1)
+    if (!comp.producto_id || V.int(comp.cantidad, { min: 1, max: 100000 }) === null)
       return res.status(400).json({ error: 'Datos de componente inválidos' });
   }
 
@@ -587,9 +682,9 @@ app.post('/api/kit-sales', async (req, res) => {
       const { rows: [p] } = await client.query(
         'SELECT * FROM products WHERE id = $1 AND empresa_id = $2 FOR UPDATE', [comp.producto_id, empresaId]
       );
-      if (!p) throw new Error(`Producto no encontrado (id ${comp.producto_id})`);
+      if (!p) throw bizError(`Producto no encontrado (id ${comp.producto_id})`);
       if (p.stock < comp.cantidad)
-        throw new Error(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
+        throw bizError(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
       totalComponentes += p.precio_venta * comp.cantidad;
     }
 
@@ -602,20 +697,21 @@ app.post('/api/kit-sales', async (req, res) => {
     }
 
     // Calcular total (componentes + mano de obra + extra)
-    const total = totalComponentes + (mano_obra || 0) + (valor_extra || 0);
+    const total = totalComponentes + mano_obra + valor_extra;
 
     // Guardar la venta del kit
     const { rows: [kitSale] } = await client.query(
       `INSERT INTO kit_sales (empresa_id, nombre_kit, componentes, mano_obra, valor_extra, total, cliente, notas, usuario_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [empresaId, nombre_kit, JSON.stringify(componentes), mano_obra || 0, valor_extra || 0, total, cliente || null, notas || null, req.user.id]
+      [empresaId, nombre_kit, JSON.stringify(componentes), mano_obra, valor_extra, total, cliente, notas, req.user.id]
     );
 
     await client.query('COMMIT');
     res.status(201).json(kitSale);
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(400).json({ error: err.message });
+    if (err.biz) return res.status(400).json({ error: err.message });
+    serverError(res, err);
   } finally {
     client.release();
   }
@@ -648,7 +744,7 @@ app.get('/api/stats/categorias', async (req, res) => {
     if (req.user.rol !== 'gerente') mapped.forEach(r => delete r.invertido);
     res.json(mapped);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -668,7 +764,12 @@ app.get('/api/export', requireGerente, async (req, res) => {
       'Costo (COP)','% Ganancia','Precio Venta (COP)','Stock','Stock Mínimo',
       'Proveedor','Notas','Imagen URL','Fecha Creación'
     ];
-    const escape = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const escape = v => {
+      let s = String(v ?? '').replace(/"/g, '""');
+      // Neutralizar fórmulas de Excel (=SUM(...), +..., @...) inyectadas en nombres/notas
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return `"${s}"`;
+    };
     const csvRows = rows.map(p => [
       p.id, p.nombre, p.codigo, p.categoria, p.descripcion,
       p.peso_gramos, p.costo, p.porcentaje_ganancia, p.precio_venta,
@@ -684,7 +785,7 @@ app.get('/api/export', requireGerente, async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename=inventario-am18k.csv');
     res.send(csv);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -697,23 +798,28 @@ app.get('/api/cotizaciones', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 app.post('/api/cotizaciones', async (req, res) => {
-  const { cliente, items, total, notas } = req.body;
-  if (!Array.isArray(items) || items.length === 0)
-    return res.status(400).json({ error: 'La cotización está vacía' });
+  const { items } = req.body;
+  const cliente = V.optStr(req.body.cliente, 200);
+  const notas   = V.optStr(req.body.notas, 2000);
+  const total   = V.num(req.body.total ?? 0);
+  if (!Array.isArray(items) || items.length === 0 || items.length > 200)
+    return res.status(400).json({ error: 'La cotización debe tener entre 1 y 200 ítems' });
+  if (total === null) return res.status(400).json({ error: 'Total inválido' });
+  if (cliente === undefined || notas === undefined) return res.status(400).json({ error: 'Texto demasiado largo' });
   try {
     const { rows } = await pool.query(
       `INSERT INTO cotizaciones (empresa_id, cliente, items, total, notas)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [req.user.empresa_id, cliente || null, JSON.stringify(items), total || 0, notas || null]
+      [req.user.empresa_id, cliente, JSON.stringify(items), total, notas]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -722,7 +828,7 @@ app.delete('/api/cotizaciones/:id', async (req, res) => {
     await pool.query('DELETE FROM cotizaciones WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -744,23 +850,28 @@ app.get('/api/gastos', async (req, res) => {
     );
     res.json({ gastos: rows, total: rows.reduce((s, g) => s + g.monto, 0) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 app.post('/api/gastos', async (req, res) => {
-  const { concepto, monto, recurrente, imagen_url, notas } = req.body;
-  if (!concepto || typeof monto !== 'number' || monto <= 0)
+  const concepto   = V.str(req.body.concepto, 200);
+  const monto      = V.num(req.body.monto, { min: 0.01 });
+  const notas      = V.optStr(req.body.notas, 2000);
+  const imagen_url = V.imagen(req.body.imagen_url);
+  if (!concepto || monto === null)
     return res.status(400).json({ error: 'Concepto y monto (mayor a 0) son requeridos' });
+  if (notas === undefined) return res.status(400).json({ error: 'Texto demasiado largo' });
+  if (imagen_url === undefined) return res.status(400).json({ error: 'Imagen inválida' });
   try {
     const { rows: [gasto] } = await pool.query(
       `INSERT INTO gastos (empresa_id, concepto, monto, recurrente, imagen_url, notas)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [req.user.empresa_id, concepto, monto, !!recurrente, imagen_url || null, notas || null]
+      [req.user.empresa_id, concepto, monto, !!req.body.recurrente, imagen_url, notas]
     );
     res.status(201).json(gasto);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -769,7 +880,7 @@ app.delete('/api/gastos/:id', async (req, res) => {
     await pool.query('DELETE FROM gastos WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -795,23 +906,27 @@ app.get('/api/cuentas-por-cobrar', async (req, res) => {
     const filtradas = estado === 'todas' ? mapeadas : mapeadas.filter(c => c.estado === estado);
     res.json(filtradas);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 app.post('/api/cuentas-por-cobrar', async (req, res) => {
-  const { cliente, monto_total, descripcion, notas } = req.body;
-  if (!cliente || typeof monto_total !== 'number' || monto_total <= 0)
+  const cliente     = V.str(req.body.cliente, 200);
+  const monto_total = V.num(req.body.monto_total, { min: 0.01 });
+  const descripcion = V.optStr(req.body.descripcion, 500);
+  const notas       = V.optStr(req.body.notas, 2000);
+  if (!cliente || monto_total === null)
     return res.status(400).json({ error: 'Cliente y monto total (mayor a 0) son requeridos' });
+  if (descripcion === undefined || notas === undefined) return res.status(400).json({ error: 'Texto demasiado largo' });
   try {
     const { rows: [cuenta] } = await pool.query(
       `INSERT INTO cuentas_por_cobrar (empresa_id, usuario_id, cliente, descripcion, monto_total, notas)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [req.user.empresa_id, req.user.id, cliente, descripcion || null, monto_total, notas || null]
+      [req.user.empresa_id, req.user.id, cliente, descripcion, monto_total, notas]
     );
     res.status(201).json({ ...cuenta, monto_abonado: 0, saldo: cuenta.monto_total, estado: 'pendiente' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -828,7 +943,7 @@ app.get('/api/cuentas-por-cobrar/:id', async (req, res) => {
     const saldo = cuenta.monto_total - monto_abonado;
     res.json({ ...cuenta, abonos, monto_abonado, saldo, estado: saldo <= 0.01 ? 'pagada' : 'pendiente' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -842,33 +957,47 @@ app.delete('/api/cuentas-por-cobrar/:id', requireGerente, async (req, res) => {
     await pool.query('DELETE FROM cuentas_por_cobrar WHERE id = $1', [cuenta.id]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 app.post('/api/cuentas-por-cobrar/:id/abonos', async (req, res) => {
-  const { monto, notas } = req.body;
-  if (typeof monto !== 'number' || monto <= 0)
-    return res.status(400).json({ error: 'El monto debe ser mayor a 0' });
+  const monto = V.num(req.body.monto, { min: 0.01 });
+  const notas = V.optStr(req.body.notas, 2000);
+  if (monto === null) return res.status(400).json({ error: 'El monto debe ser mayor a 0' });
+  if (notas === undefined) return res.status(400).json({ error: 'Texto demasiado largo' });
+  const client = await pool.connect();
   try {
-    const { rows: [cuenta] } = await pool.query(
-      'SELECT * FROM cuentas_por_cobrar WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]
+    await client.query('BEGIN');
+    // FOR UPDATE bloquea la cuenta: dos abonos simultáneos no pueden exceder el saldo
+    const { rows: [cuenta] } = await client.query(
+      'SELECT * FROM cuentas_por_cobrar WHERE id = $1 AND empresa_id = $2 FOR UPDATE',
+      [req.params.id, req.user.empresa_id]
     );
-    if (!cuenta) return res.status(404).json({ error: 'Cuenta no encontrada' });
-    const { rows: [{ t }] } = await pool.query(
+    if (!cuenta) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Cuenta no encontrada' });
+    }
+    const { rows: [{ t }] } = await client.query(
       'SELECT COALESCE(SUM(monto), 0) AS t FROM abonos WHERE cuenta_id = $1', [cuenta.id]
     );
     const saldoActual = cuenta.monto_total - parseFloat(t);
-    if (monto > saldoActual + 0.01)
+    if (monto > saldoActual + 0.01) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: `El abono no puede ser mayor al saldo pendiente (${saldoActual})` });
-    const { rows: [abono] } = await pool.query(
+    }
+    const { rows: [abono] } = await client.query(
       `INSERT INTO abonos (empresa_id, cuenta_id, cliente, monto, notas)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [req.user.empresa_id, cuenta.id, cuenta.cliente, monto, notas || null]
+      [req.user.empresa_id, cuenta.id, cuenta.cliente, monto, notas]
     );
+    await client.query('COMMIT');
     res.status(201).json(abono);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    await client.query('ROLLBACK');
+    serverError(res, err);
+  } finally {
+    client.release();
   }
 });
 
@@ -877,7 +1006,7 @@ app.delete('/api/abonos/:id', async (req, res) => {
     await pool.query('DELETE FROM abonos WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -907,7 +1036,7 @@ app.get('/api/cierres', async (req, res) => {
     );
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
@@ -925,17 +1054,19 @@ app.get('/api/cierres/hoy', async (req, res) => {
     ]);
     res.json({ ...resumen, cierre: existente.rows[0] || null });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    serverError(res, err);
   }
 });
 
 app.post('/api/cierres', async (req, res) => {
-  const { apertura, dinero_efectivo, dinero_cuenta, notas } = req.body;
+  const apertura        = V.num(req.body.apertura);
+  const dinero_efectivo = V.num(req.body.dinero_efectivo);
+  const dinero_cuenta   = V.num(req.body.dinero_cuenta);
+  const notas           = V.optStr(req.body.notas, 2000);
   const empresaId = req.user.empresa_id;
-  const campos = { apertura, dinero_efectivo, dinero_cuenta };
-  for (const [campo, valor] of Object.entries(campos)) {
-    if (typeof valor !== 'number' || valor < 0) return res.status(400).json({ error: `Campo "${campo}" inválido` });
-  }
+  if (apertura === null || dinero_efectivo === null || dinero_cuenta === null)
+    return res.status(400).json({ error: 'Apertura, efectivo y cuenta deben ser números positivos' });
+  if (notas === undefined) return res.status(400).json({ error: 'Texto demasiado largo' });
   try {
     const { ventas, gastos, abonos } = await resumenDelDia(empresaId);
     const total_esperado = apertura + ventas + abonos - gastos;
@@ -946,16 +1077,19 @@ app.post('/api/cierres', async (req, res) => {
         (empresa_id, usuario_id, apertura, ventas, abonos, gastos, total_esperado, dinero_efectivo, dinero_cuenta, diferencia, notas)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING *`,
-      [empresaId, req.user.id, apertura, ventas, abonos, gastos, total_esperado, dinero_efectivo, dinero_cuenta, diferencia, notas || null]
+      [empresaId, req.user.id, apertura, ventas, abonos, gastos, total_esperado, dinero_efectivo, dinero_cuenta, diferencia, notas]
     );
     res.status(201).json(cierre);
   } catch (err) {
-    const msg = err.code === '23505' ? 'Ya existe un cierre de caja para hoy' : err.message;
+    if (err.code !== '23505') console.error(err);
+    const msg = err.code === '23505' ? 'Ya existe un cierre de caja para hoy' : 'Error al procesar la solicitud';
     res.status(400).json({ error: msg });
   }
 });
 
 // ─── SPA fallback ─────────────────────────────────────────────────────────────
+
+app.use('/api', (req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 
@@ -966,7 +1100,7 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => console.log(`AM 18K running on port ${PORT}`));
 
 if (!process.env.JWT_SECRET) {
-  console.warn('⚠ JWT_SECRET no está configurado — usando un valor por defecto inseguro. Configúralo en las variables de entorno antes de desplegar a producción.');
+  console.warn('⚠ JWT_SECRET no está configurado — se generó uno aleatorio para este arranque, así que las sesiones se cerrarán en cada reinicio. Configúralo en Railway para sesiones persistentes.');
 }
 
 init().catch(err => console.error('DB init error:', err));
