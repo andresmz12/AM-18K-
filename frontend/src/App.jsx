@@ -11,6 +11,7 @@ import CotizarView from './components/CotizarView';
 import AbonosView from './components/AbonosView';
 import GastosView from './components/GastosView';
 import CierreCajaView from './components/CierreCajaView';
+import ReportesView from './components/ReportesView';
 import UsersView from './components/UsersView';
 import PlatformView from './components/PlatformView';
 
@@ -225,6 +226,10 @@ export default function App() {
 
         {view === 'caja' && (
           <CierreCajaView apiFetch={apiFetch} onNavigate={setView} />
+        )}
+
+        {view === 'reportes' && isGerente && (
+          <ReportesView apiFetch={apiFetch} />
         )}
 
         {view === 'usuarios' && isGerente && (

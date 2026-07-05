@@ -3,6 +3,7 @@ const cors    = require('cors');
 const path    = require('path');
 const { pool, init } = require('./database');
 const { hashPassword, comparePassword, signToken, requireAuth, requireGerente, requireSuperadmin } = require('./auth');
+const { generarReporte } = require('./reports');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -517,9 +518,9 @@ app.post('/api/ventas/bulk', async (req, res) => {
       if (p.stock < cantidad) throw new Error(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
       const total = cantidad * precio_unitario;
       const { rows: [venta] } = await client.query(
-        `INSERT INTO ventas (empresa_id, producto_id, cantidad, precio_unitario, total, notas)
-         VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-        [empresaId, producto_id, cantidad, precio_unitario, total, item.notas || notas || null]
+        `INSERT INTO ventas (empresa_id, producto_id, cantidad, precio_unitario, total, notas, usuario_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [empresaId, producto_id, cantidad, precio_unitario, total, item.notas || notas || null, req.user.id]
       );
       await client.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [cantidad, producto_id]);
       const { rows: [result] } = await client.query(
@@ -605,9 +606,9 @@ app.post('/api/kit-sales', async (req, res) => {
 
     // Guardar la venta del kit
     const { rows: [kitSale] } = await client.query(
-      `INSERT INTO kit_sales (empresa_id, nombre_kit, componentes, mano_obra, valor_extra, total, cliente, notas)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [empresaId, nombre_kit, JSON.stringify(componentes), mano_obra || 0, valor_extra || 0, total, cliente || null, notas || null]
+      `INSERT INTO kit_sales (empresa_id, nombre_kit, componentes, mano_obra, valor_extra, total, cliente, notas, usuario_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [empresaId, nombre_kit, JSON.stringify(componentes), mano_obra || 0, valor_extra || 0, total, cliente || null, notas || null, req.user.id]
     );
 
     await client.query('COMMIT');
@@ -650,6 +651,10 @@ app.get('/api/stats/categorias', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ─── Reportes (solo gerente) — Excel o PDF ─────────────────────────────────────
+
+app.get('/api/reportes/:tipo', requireGerente, (req, res) => generarReporte(req, res, req.params.tipo));
 
 // ─── CSV Export (solo gerente — incluye costos) ───────────────────────────────
 

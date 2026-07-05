@@ -61,6 +61,14 @@ export default function Header({ view, setView, onAdd, onExport, user, onLogout,
           </button>
           {isGerente && (
             <button
+              className={`nav-btn ${view === 'reportes' ? 'nav-btn--active' : ''}`}
+              onClick={() => setView('reportes')}
+            >
+              Reportes
+            </button>
+          )}
+          {isGerente && (
+            <button
               className={`nav-btn ${view === 'usuarios' ? 'nav-btn--active' : ''}`}
               onClick={() => setView('usuarios')}
             >

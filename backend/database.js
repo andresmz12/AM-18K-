@@ -128,6 +128,8 @@ async function init() {
     ALTER TABLE empresas     ADD COLUMN IF NOT EXISTS activa BOOLEAN NOT NULL DEFAULT true;
     ALTER TABLE gastos       ADD COLUMN IF NOT EXISTS recurrente BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE gastos       ADD COLUMN IF NOT EXISTS imagen_url TEXT;
+    ALTER TABLE ventas       ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id);
+    ALTER TABLE kit_sales    ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id);
   `);
 
   // ── Migración de roles: 'admin' → 'gerente', 'vendedor' → 'empleado' ───────
