@@ -28,8 +28,8 @@ export default function AuthView() {
   return (
     <div className="auth-view">
       <div className="auth-card">
+        <div className="auth-card__badge" aria-hidden="true">◈</div>
         <div className="auth-card__brand">
-          <span className="header__logo" aria-hidden="true">◈</span>
           <h1>AM 18K</h1>
         </div>
         <p className="auth-card__subtitle">Sistema de inventario para joyerías</p>
@@ -37,14 +37,14 @@ export default function AuthView() {
         <div className="auth-tabs">
           <button
             type="button"
-            className={`sale-mode-tab ${mode === 'login' ? 'sale-mode-tab--active' : ''}`}
+            className={`auth-tab ${mode === 'login' ? 'auth-tab--active' : ''}`}
             onClick={() => { setMode('login'); setError(''); }}
           >
             Iniciar sesión
           </button>
           <button
             type="button"
-            className={`sale-mode-tab ${mode === 'signup' ? 'sale-mode-tab--active' : ''}`}
+            className={`auth-tab ${mode === 'signup' ? 'auth-tab--active' : ''}`}
             onClick={() => { setMode('signup'); setError(''); }}
           >
             Crear cuenta

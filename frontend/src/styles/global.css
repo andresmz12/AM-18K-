@@ -1329,44 +1329,95 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--black);
-  padding: 20px;
+  padding: 40px 20px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 900px 600px at 50% -10%, rgba(184, 150, 12, 0.22), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 100%, rgba(184, 150, 12, 0.10), transparent 60%),
+    var(--black);
+}
+
+/* Diamante decorativo de fondo, puramente ornamental */
+.auth-view::before {
+  content: '◈';
+  position: absolute;
+  font-size: 620px;
+  line-height: 1;
+  color: rgba(212, 175, 55, 0.045);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  pointer-events: none;
+  user-select: none;
 }
 
 .auth-card {
+  position: relative;
   background: var(--white);
   border-radius: var(--radius-lg);
+  border-top: 3px solid var(--gold);
   box-shadow: var(--shadow-lg);
-  padding: 36px 32px;
+  padding: 40px 36px;
   width: 100%;
   max-width: 420px;
 }
 
-.auth-card__brand {
+.auth-card__badge {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--black);
+  color: var(--gold);
+  font-size: 26px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
+  justify-content: center;
+  margin: 0 auto 16px;
+  box-shadow: 0 0 0 4px var(--gold-faint);
+}
+
+.auth-card__brand {
+  text-align: center;
 }
 .auth-card__brand h1 {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   color: var(--black);
 }
-.auth-card__brand .header__logo { color: var(--gold); font-size: 26px; }
 
 .auth-card__subtitle {
   color: var(--gray-600);
   font-size: 13px;
-  margin-bottom: 24px;
+  text-align: center;
+  margin-bottom: 28px;
 }
 
 .auth-tabs {
   display: flex;
-  gap: 6px;
-  margin-bottom: 20px;
+  gap: 0;
+  border-bottom: 2px solid var(--gray-200);
+  margin-bottom: 24px;
 }
+
+.auth-tab {
+  flex: 1;
+  padding: 10px 8px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gray-400);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.18s, border-color 0.18s;
+  text-align: center;
+  white-space: nowrap;
+}
+.auth-tab:hover { color: var(--black); }
+.auth-tab--active { color: var(--gold-dark); border-bottom-color: var(--gold); }
 
 /* ============================================================
    HEADER — user menu
