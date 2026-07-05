@@ -19,15 +19,15 @@ async function main() {
 
   await init();
 
-  const { rows: [empresa] } = await pool.query(
-    `INSERT INTO empresas (nombre) VALUES ('AM 18K — Plataforma')
-     ON CONFLICT DO NOTHING RETURNING id`
+  let { rows: [empresa] } = await pool.query(
+    `SELECT id FROM empresas WHERE nombre = 'AM 18K — Plataforma' LIMIT 1`
   );
-  let empresaId = empresa?.id;
-  if (!empresaId) {
-    const { rows } = await pool.query(`SELECT id FROM empresas WHERE nombre = 'AM 18K — Plataforma' LIMIT 1`);
-    empresaId = rows[0].id;
+  if (!empresa) {
+    ({ rows: [empresa] } = await pool.query(
+      `INSERT INTO empresas (nombre) VALUES ('AM 18K — Plataforma') RETURNING id`
+    ));
   }
+  const empresaId = empresa.id;
 
   const password_hash = await hashPassword(password);
   await pool.query(

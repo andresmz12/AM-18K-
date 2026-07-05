@@ -93,6 +93,40 @@ app.get('/api/auth/me', requireAuth, async (req, res) => {
   }
 });
 
+// ─── Bootstrap del superadmin (uso único, sin necesidad de terminal) ──────────
+// Protegido por SETUP_SECRET (variable de entorno). Sin esa variable configurada
+// en Railway, esta ruta siempre responde 404 y no hace nada.
+app.get('/api/setup/superadmin', async (req, res) => {
+  const { secret, nombre, email, password } = req.query;
+  if (!process.env.SETUP_SECRET || secret !== process.env.SETUP_SECRET) {
+    return res.status(404).send('Not found');
+  }
+  if (!nombre || !email || !password) return res.status(400).send('Faltan parámetros: nombre, email, password');
+  if (String(password).length < 6) return res.status(400).send('La contraseña debe tener al menos 6 caracteres');
+
+  try {
+    const NOMBRE_EMPRESA_PLATAFORMA = 'AM 18K — Plataforma';
+    let { rows: [empresa] } = await pool.query(
+      'SELECT id FROM empresas WHERE nombre = $1 LIMIT 1', [NOMBRE_EMPRESA_PLATAFORMA]
+    );
+    if (!empresa) {
+      ({ rows: [empresa] } = await pool.query(
+        'INSERT INTO empresas (nombre) VALUES ($1) RETURNING id', [NOMBRE_EMPRESA_PLATAFORMA]
+      ));
+    }
+    const password_hash = await hashPassword(password);
+    await pool.query(
+      `INSERT INTO usuarios (empresa_id, nombre, email, password_hash, rol)
+       VALUES ($1, $2, $3, $4, 'superadmin')
+       ON CONFLICT (email) DO UPDATE SET password_hash = $4, rol = 'superadmin', activo = true`,
+      [empresa.id, nombre, String(email).toLowerCase(), password_hash]
+    );
+    res.send(`Listo. Cuenta de superadmin creada/actualizada para ${email}. Ya puedes iniciar sesión en la app con ese correo. Por seguridad, ahora borra la variable SETUP_SECRET en Railway.`);
+  } catch (err) {
+    res.status(500).send('Error: ' + err.message);
+  }
+});
+
 // ─── Todo lo demás requiere sesión iniciada ───────────────────────────────────
 
 app.use('/api', requireAuth);
