@@ -1,11 +1,12 @@
 import React from 'react';
+import DashboardCharts from './DashboardCharts';
 
 const cop = v =>
   new Intl.NumberFormat('es-CO', {
     style: 'currency', currency: 'COP', minimumFractionDigits: 0
   }).format(v || 0);
 
-export default function Dashboard({ stats, statsCategoria, loading, onViewInventory }) {
+export default function Dashboard({ stats, statsCategoria, loading, onViewInventory, isGerente, apiFetch }) {
   if (loading || !stats) {
     return (
       <div className="dashboard">
@@ -16,9 +17,9 @@ export default function Dashboard({ stats, statsCategoria, loading, onViewInvent
 
   const cards = [
     { label: 'Total Productos',    value: stats.totalProductos,         icon: '◈', type: 'neutral'  },
-    { label: 'Total Invertido',    value: cop(stats.totalInvertido),    icon: '↓', type: 'neutral'  },
+    ...(isGerente ? [{ label: 'Total Invertido', value: cop(stats.totalInvertido), icon: '↓', type: 'neutral' }] : []),
     { label: 'Valor Inventario',   value: cop(stats.valorInventario),   icon: '◆', type: 'positive' },
-    { label: 'Ganancia Potencial', value: cop(stats.gananciasPotencial),icon: '▲', type: 'positive' },
+    ...(isGerente ? [{ label: 'Ganancia Potencial', value: cop(stats.gananciasPotencial), icon: '▲', type: 'positive' }] : []),
     { label: 'Stock Bajo',         value: stats.productosStockBajo,     icon: '⚠', type: stats.productosStockBajo > 0 ? 'warning' : 'neutral', clickable: stats.productosStockBajo > 0 },
     { label: 'Ventas Hoy',         value: stats.ventasHoy,             icon: '↗', type: 'neutral'  },
     { label: 'Ingresos Hoy',       value: cop(stats.ingresosHoy),      icon: '$', type: stats.ingresosHoy > 0 ? 'positive' : 'neutral' },
@@ -48,6 +49,8 @@ export default function Dashboard({ stats, statsCategoria, loading, onViewInvent
         ))}
       </div>
 
+      {isGerente && <DashboardCharts apiFetch={apiFetch} />}
+
       {statsCategoria && statsCategoria.length > 0 && (
         <div className="cat-stats">
           <h3 className="cat-stats__title">Inventario por Categoría</h3>
@@ -58,7 +61,7 @@ export default function Dashboard({ stats, statsCategoria, loading, onViewInvent
                   <th>Categoría</th>
                   <th className="td-num">Productos</th>
                   <th className="td-num">Valor Total</th>
-                  <th className="td-num">Invertido</th>
+                  {isGerente && <th className="td-num">Invertido</th>}
                   <th>% del Total</th>
                 </tr>
               </thead>
@@ -68,7 +71,7 @@ export default function Dashboard({ stats, statsCategoria, loading, onViewInvent
                     <td><strong>{c.categoria}</strong></td>
                     <td className="td-num">{c.cantidad}</td>
                     <td className="td-num">{cop(c.valor_total)}</td>
-                    <td className="td-num">{cop(c.invertido)}</td>
+                    {isGerente && <td className="td-num">{cop(c.invertido)}</td>}
                     <td>
                       <div className="pct-wrap">
                         <div className="pct-bar" style={{ width: `${c.porcentaje}%` }} />

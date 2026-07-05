@@ -18,7 +18,7 @@ const fmtFecha = str => {
     + ' ' + d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 };
 
-export default function VentasView({ onRegister }) {
+export default function VentasView({ onRegister, apiFetch }) {
   const [periodo, setPeriodo]         = useState('hoy');
   const [items, setItems]             = useState([]); // ventas + kits combinadas
   const [totalVentas, setTotalVentas] = useState(0);
@@ -28,8 +28,8 @@ export default function VentasView({ onRegister }) {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      fetch(`/api/ventas?periodo=${periodo}`).then(r => r.json()),
-      fetch(`/api/kit-sales?periodo=${periodo}`).then(r => r.json())
+      apiFetch(`/api/ventas?periodo=${periodo}`).then(r => r.json()),
+      apiFetch(`/api/kit-sales?periodo=${periodo}`).then(r => r.json())
     ])
       .then(([ventasData, kitsData]) => {
         // Combinar ventas simples

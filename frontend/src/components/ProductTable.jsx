@@ -33,7 +33,7 @@ function ImgThumb({ url, onZoom }) {
 }
 
 export default function ProductTable({
-  products, loading, search, setSearch, categoria, setCategoria, onEdit, onDelete, onAdd
+  products, loading, search, setSearch, categoria, setCategoria, onEdit, onDelete, onAdd, isGerente
 }) {
   const [sortCol, setSortCol]       = useState(null);
   const [sortDir, setSortDir]       = useState('asc');
@@ -61,7 +61,9 @@ export default function ProductTable({
       {lightbox && <ImageLightbox src={lightbox} onClose={() => setLightbox(null)} />}
       <div className="inventory__header">
         <h2 className="section-title">Inventario</h2>
-        <button className="btn btn--primary btn--hide-mobile" onClick={onAdd}>+ Agregar producto</button>
+        {isGerente && (
+          <button className="btn btn--primary btn--hide-mobile" onClick={onAdd}>+ Agregar producto</button>
+        )}
       </div>
 
       <div className="filters">
@@ -91,7 +93,7 @@ export default function ProductTable({
         <div className="empty-state">
           <p className="empty-state__icon">◈</p>
           <p>No hay productos{search || categoria !== 'Todas' ? ' con esos filtros' : ' en el inventario'}</p>
-          {!search && categoria === 'Todas' && (
+          {!search && categoria === 'Todas' && isGerente && (
             <button className="btn btn--primary" onClick={onAdd}>Agregar primer producto</button>
           )}
         </div>
@@ -110,10 +112,12 @@ export default function ProductTable({
                     Nombre {sortIcon('nombre')}
                   </th>
                   <th>Categoría</th>
-                  <th className="th-sortable td-num" onClick={() => handleSort('costo')}>
-                    Costo {sortIcon('costo')}
-                  </th>
-                  <th className="td-num">% Gan.</th>
+                  {isGerente && (
+                    <th className="th-sortable td-num" onClick={() => handleSort('costo')}>
+                      Costo {sortIcon('costo')}
+                    </th>
+                  )}
+                  {isGerente && <th className="td-num">% Gan.</th>}
                   <th className="th-sortable td-num" onClick={() => handleSort('precio_venta')}>
                     P. Venta {sortIcon('precio_venta')}
                   </th>
@@ -121,7 +125,7 @@ export default function ProductTable({
                     Stock {sortIcon('stock')}
                   </th>
                   <th>Proveedor</th>
-                  <th>Acciones</th>
+                  {isGerente && <th>Acciones</th>}
                 </tr>
               </thead>
               <tbody>
@@ -142,8 +146,8 @@ export default function ProductTable({
                     <td>
                       <span className={catClass(p.categoria)}>{p.categoria}</span>
                     </td>
-                    <td className="td-num">{cop(p.costo)}</td>
-                    <td className="td-num">{p.porcentaje_ganancia}%</td>
+                    {isGerente && <td className="td-num">{cop(p.costo)}</td>}
+                    {isGerente && <td className="td-num">{p.porcentaje_ganancia}%</td>}
                     <td className="td-num">
                       <strong>{cop(p.precio_venta)}</strong>
                     </td>
@@ -153,12 +157,14 @@ export default function ProductTable({
                       </span>
                     </td>
                     <td>{p.proveedor || <span className="text-muted">—</span>}</td>
-                    <td>
-                      <div className="action-btns">
-                        <button className="btn-icon btn-icon--edit" onClick={() => onEdit(p)} title="Editar">✎</button>
-                        <button className="btn-icon btn-icon--delete" onClick={() => onDelete(p.id)} title="Eliminar">✕</button>
-                      </div>
-                    </td>
+                    {isGerente && (
+                      <td>
+                        <div className="action-btns">
+                          <button className="btn-icon btn-icon--edit" onClick={() => onEdit(p)} title="Editar">✎</button>
+                          <button className="btn-icon btn-icon--delete" onClick={() => onDelete(p.id)} title="Eliminar">✕</button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

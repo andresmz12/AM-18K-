@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from './context/AuthContext';
+import AuthView from './components/AuthView';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import ProductTable from './components/ProductTable';
@@ -6,8 +8,12 @@ import ProductForm from './components/ProductForm';
 import VentasView from './components/VentasView';
 import SaleForm from './components/SaleForm';
 import CotizarView from './components/CotizarView';
+import UsersView from './components/UsersView';
+import PlatformView from './components/PlatformView';
 
 export default function App() {
+  const { user, loading: authLoading, apiFetch, logout } = useAuth();
+
   const [products, setProducts]         = useState([]);
   const [dashboard, setDashboard]       = useState(null);
   const [statsCategoria, setStatsCat]   = useState([]);
@@ -21,26 +27,29 @@ export default function App() {
   const [tick, setTick]                 = useState(0);
   const [notification, setNotification] = useState(null);
 
+  const isGerente = user?.rol === 'gerente';
   const refresh = () => setTick(t => t + 1);
 
   useEffect(() => {
+    if (!user || user.rol === 'superadmin') return;
     const params = new URLSearchParams();
     if (search) params.append('search', search);
     if (categoria !== 'Todas') params.append('categoria', categoria);
     let alive = true;
-    fetch(`/api/products?${params}`)
+    apiFetch(`/api/products?${params}`)
       .then(r => r.json())
       .then(d => alive && setProducts(d))
       .catch(console.error);
     return () => { alive = false; };
-  }, [search, categoria, tick]);
+  }, [user, search, categoria, tick]);
 
   useEffect(() => {
+    if (!user || user.rol === 'superadmin') return;
     let alive = true;
     setLoading(true);
     Promise.all([
-      fetch('/api/dashboard').then(r => r.json()),
-      fetch('/api/stats/categorias').then(r => r.json())
+      apiFetch('/api/dashboard').then(r => r.json()),
+      apiFetch('/api/stats/categorias').then(r => r.json())
     ]).then(([dash, cats]) => {
       if (alive) {
         setDashboard(dash);
@@ -49,7 +58,7 @@ export default function App() {
       }
     }).catch(console.error);
     return () => { alive = false; };
-  }, [tick]);
+  }, [user, tick]);
 
   const notify = (message, type = 'success') => {
     setNotification({ message, type });
@@ -60,7 +69,7 @@ export default function App() {
   const openEdit = async product => {
     // Cargar imagen completa antes de abrir el formulario
     try {
-      const res = await fetch(`/api/products/${product.id}`);
+      const res = await apiFetch(`/api/products/${product.id}`);
       if (res.ok) setEditProduct(await res.json());
       else setEditProduct(product);
     } catch {
@@ -73,7 +82,7 @@ export default function App() {
   const handleSave = async formData => {
     const method = editProduct ? 'PUT' : 'POST';
     const url    = editProduct ? `/api/products/${editProduct.id}` : '/api/products';
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData)
@@ -90,7 +99,7 @@ export default function App() {
 
   const handleDelete = async id => {
     if (!window.confirm('¿Eliminar este producto?')) return;
-    await fetch(`/api/products/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
     refresh();
     notify('Producto eliminado');
   };
@@ -99,7 +108,7 @@ export default function App() {
     const isKit = formData.tipo === 'kit';
     const endpoint = isKit ? '/api/kit-sales' : '/api/ventas/bulk';
 
-    const res = await fetch(endpoint, {
+    const res = await apiFetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData)
@@ -120,13 +129,46 @@ export default function App() {
     }
   };
 
+  const handleExport = async () => {
+    const res = await apiFetch('/api/export');
+    if (!res.ok) return notify('Error al exportar', 'error');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'inventario-am18k.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (authLoading) {
+    return <div className="loading loading--full">Cargando...</div>;
+  }
+
+  if (!user) {
+    return <AuthView />;
+  }
+
+  if (user.rol === 'superadmin') {
+    return (
+      <div className="app">
+        <Header view="usuarios" setView={() => {}} user={user} onLogout={logout} platformMode />
+        <main className="main">
+          <PlatformView apiFetch={apiFetch} />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <Header
         view={view}
         setView={setView}
         onAdd={openAdd}
-        onExport={() => window.open('/api/export', '_blank')}
+        onExport={handleExport}
+        user={user}
+        onLogout={logout}
       />
 
       {notification && (
@@ -142,6 +184,8 @@ export default function App() {
             statsCategoria={statsCategoria}
             loading={loading}
             onViewInventory={() => setView('inventory')}
+            isGerente={isGerente}
+            apiFetch={apiFetch}
           />
         )}
 
@@ -156,15 +200,20 @@ export default function App() {
             onEdit={openEdit}
             onDelete={handleDelete}
             onAdd={openAdd}
+            isGerente={isGerente}
           />
         )}
 
         {view === 'ventas' && (
-          <VentasView onRegister={() => setShowSaleForm(true)} />
+          <VentasView onRegister={() => setShowSaleForm(true)} apiFetch={apiFetch} />
         )}
 
         {view === 'cotizar' && (
-          <CotizarView products={products} />
+          <CotizarView products={products} apiFetch={apiFetch} />
+        )}
+
+        {view === 'usuarios' && isGerente && (
+          <UsersView />
         )}
       </main>
 

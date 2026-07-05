@@ -19,7 +19,7 @@ const fmtFechaCorta = str => {
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-export default function CotizarView({ products }) {
+export default function CotizarView({ products, apiFetch }) {
   // ── Estado carrito ──────────────────────────────────────────────────────────
   const [cart, setCart]           = useState([]);
   const [productoId, setProductoId] = useState('');
@@ -45,7 +45,7 @@ export default function CotizarView({ products }) {
 
   // Cargar cotizaciones guardadas al montar
   useEffect(() => {
-    fetch('/api/cotizaciones')
+    apiFetch('/api/cotizaciones')
       .then(r => r.json())
       .then(setSaved)
       .catch(console.error);
@@ -79,7 +79,7 @@ export default function CotizarView({ products }) {
     if (cart.length === 0) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/cotizaciones', {
+      const res = await apiFetch('/api/cotizaciones', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cliente, items: cart, total, notas })
@@ -98,7 +98,7 @@ export default function CotizarView({ products }) {
   // ── Eliminar guardada ────────────────────────────────────────────────────────
   const handleDelete = async id => {
     if (!window.confirm('¿Eliminar esta cotización?')) return;
-    await fetch(`/api/cotizaciones/${id}`, { method: 'DELETE' });
+    await apiFetch(`/api/cotizaciones/${id}`, { method: 'DELETE' });
     setSaved(prev => prev.filter(c => c.id !== id));
     if (expanded === id) setExpanded(null);
   };
