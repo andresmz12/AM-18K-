@@ -115,8 +115,8 @@ export default function CierreCajaView({ apiFetch, onNavigate }) {
                 <div className="precio-display">{cop(abonos)}</div>
               </div>
               {onNavigate && (
-                <button type="button" className="btn btn--outline" onClick={() => onNavigate('abonos')}>
-                  Ir a Abonos →
+                <button type="button" className="btn btn--outline" onClick={() => onNavigate('cuentas')}>
+                  Ir a Cuentas por Cobrar →
                 </button>
               )}
             </div>

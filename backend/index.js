@@ -773,35 +773,98 @@ app.delete('/api/gastos/:id', async (req, res) => {
   }
 });
 
-// ─── Abonos ───────────────────────────────────────────────────────────────────
+// ─── Cuentas por Cobrar ─────────────────────────────────────────────────────────
+// Cada cuenta representa una deuda de un cliente; los abonos se aplican contra
+// ella hasta saldarla (saldo = monto_total - suma de abonos).
 
-app.get('/api/abonos', async (req, res) => {
-  const { periodo = 'hoy' } = req.query;
-  const filtros = {
-    hoy:    "fecha::date = CURRENT_DATE",
-    semana: "fecha >= NOW() - INTERVAL '7 days'",
-    mes:    "DATE_TRUNC('month', fecha) = DATE_TRUNC('month', NOW())"
-  };
-  const where = filtros[periodo] || filtros.hoy;
+app.get('/api/cuentas-por-cobrar', async (req, res) => {
+  const { estado = 'todas' } = req.query;
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM abonos WHERE empresa_id = $1 AND ${where} ORDER BY fecha DESC`,
+      `SELECT c.*, COALESCE((SELECT SUM(a.monto) FROM abonos a WHERE a.cuenta_id = c.id), 0) AS monto_abonado
+       FROM cuentas_por_cobrar c
+       WHERE c.empresa_id = $1
+       ORDER BY c.fecha_creacion DESC`,
       [req.user.empresa_id]
     );
-    res.json({ abonos: rows, total: rows.reduce((s, a) => s + a.monto, 0) });
+    const mapeadas = rows.map(r => {
+      const monto_abonado = parseFloat(r.monto_abonado);
+      const saldo = r.monto_total - monto_abonado;
+      return { ...r, monto_abonado, saldo, estado: saldo <= 0.01 ? 'pagada' : 'pendiente' };
+    });
+    const filtradas = estado === 'todas' ? mapeadas : mapeadas.filter(c => c.estado === estado);
+    res.json(filtradas);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/abonos', async (req, res) => {
-  const { cliente, monto, notas } = req.body;
+app.post('/api/cuentas-por-cobrar', async (req, res) => {
+  const { cliente, monto_total, descripcion, notas } = req.body;
+  if (!cliente || typeof monto_total !== 'number' || monto_total <= 0)
+    return res.status(400).json({ error: 'Cliente y monto total (mayor a 0) son requeridos' });
+  try {
+    const { rows: [cuenta] } = await pool.query(
+      `INSERT INTO cuentas_por_cobrar (empresa_id, usuario_id, cliente, descripcion, monto_total, notas)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [req.user.empresa_id, req.user.id, cliente, descripcion || null, monto_total, notas || null]
+    );
+    res.status(201).json({ ...cuenta, monto_abonado: 0, saldo: cuenta.monto_total, estado: 'pendiente' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/cuentas-por-cobrar/:id', async (req, res) => {
+  try {
+    const { rows: [cuenta] } = await pool.query(
+      'SELECT * FROM cuentas_por_cobrar WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]
+    );
+    if (!cuenta) return res.status(404).json({ error: 'Cuenta no encontrada' });
+    const { rows: abonos } = await pool.query(
+      'SELECT * FROM abonos WHERE cuenta_id = $1 ORDER BY fecha DESC', [cuenta.id]
+    );
+    const monto_abonado = abonos.reduce((s, a) => s + a.monto, 0);
+    const saldo = cuenta.monto_total - monto_abonado;
+    res.json({ ...cuenta, abonos, monto_abonado, saldo, estado: saldo <= 0.01 ? 'pagada' : 'pendiente' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/cuentas-por-cobrar/:id', requireGerente, async (req, res) => {
+  try {
+    const { rows: [cuenta] } = await pool.query(
+      'SELECT id FROM cuentas_por_cobrar WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]
+    );
+    if (!cuenta) return res.status(404).json({ error: 'Cuenta no encontrada' });
+    await pool.query('DELETE FROM abonos WHERE cuenta_id = $1', [cuenta.id]);
+    await pool.query('DELETE FROM cuentas_por_cobrar WHERE id = $1', [cuenta.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/cuentas-por-cobrar/:id/abonos', async (req, res) => {
+  const { monto, notas } = req.body;
   if (typeof monto !== 'number' || monto <= 0)
     return res.status(400).json({ error: 'El monto debe ser mayor a 0' });
   try {
+    const { rows: [cuenta] } = await pool.query(
+      'SELECT * FROM cuentas_por_cobrar WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]
+    );
+    if (!cuenta) return res.status(404).json({ error: 'Cuenta no encontrada' });
+    const { rows: [{ t }] } = await pool.query(
+      'SELECT COALESCE(SUM(monto), 0) AS t FROM abonos WHERE cuenta_id = $1', [cuenta.id]
+    );
+    const saldoActual = cuenta.monto_total - parseFloat(t);
+    if (monto > saldoActual + 0.01)
+      return res.status(400).json({ error: `El abono no puede ser mayor al saldo pendiente (${saldoActual})` });
     const { rows: [abono] } = await pool.query(
-      `INSERT INTO abonos (empresa_id, cliente, monto, notas) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [req.user.empresa_id, cliente || null, monto, notas || null]
+      `INSERT INTO abonos (empresa_id, cuenta_id, cliente, monto, notas)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [req.user.empresa_id, cuenta.id, cuenta.cliente, monto, notas || null]
     );
     res.status(201).json(abono);
   } catch (err) {

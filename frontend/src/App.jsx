@@ -8,7 +8,7 @@ import ProductForm from './components/ProductForm';
 import VentasView from './components/VentasView';
 import SaleForm from './components/SaleForm';
 import CotizarView from './components/CotizarView';
-import AbonosView from './components/AbonosView';
+import CuentasPorCobrarView from './components/CuentasPorCobrarView';
 import GastosView from './components/GastosView';
 import CierreCajaView from './components/CierreCajaView';
 import ReportesView from './components/ReportesView';
@@ -216,8 +216,8 @@ export default function App() {
           <CotizarView products={products} apiFetch={apiFetch} />
         )}
 
-        {view === 'abonos' && (
-          <AbonosView apiFetch={apiFetch} />
+        {view === 'cuentas' && (
+          <CuentasPorCobrarView apiFetch={apiFetch} isGerente={isGerente} />
         )}
 
         {view === 'gastos' && (

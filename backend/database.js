@@ -88,9 +88,22 @@ async function init() {
       fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS cuentas_por_cobrar (
+      id              SERIAL PRIMARY KEY,
+      empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
+      usuario_id      INTEGER REFERENCES usuarios(id),
+      cliente         TEXT    NOT NULL,
+      descripcion     TEXT,
+      monto_total     REAL    NOT NULL,
+      notas           TEXT,
+      fecha_creacion  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    -- Cada abono se aplica contra una cuenta por cobrar (cuenta_id) y reduce su saldo.
     CREATE TABLE IF NOT EXISTS abonos (
       id              SERIAL PRIMARY KEY,
       empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
+      cuenta_id       INTEGER REFERENCES cuentas_por_cobrar(id),
       cliente         TEXT,
       monto           REAL    NOT NULL,
       notas           TEXT,
@@ -130,6 +143,7 @@ async function init() {
     ALTER TABLE gastos       ADD COLUMN IF NOT EXISTS imagen_url TEXT;
     ALTER TABLE ventas       ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id);
     ALTER TABLE kit_sales    ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id);
+    ALTER TABLE abonos       ADD COLUMN IF NOT EXISTS cuenta_id INTEGER REFERENCES cuentas_por_cobrar(id);
   `);
 
   // ── Migración de roles: 'admin' → 'gerente', 'vendedor' → 'empleado' ───────

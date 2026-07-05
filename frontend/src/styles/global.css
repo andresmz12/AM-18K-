@@ -333,6 +333,7 @@ body {
 }
 .filter-tab:hover      { border-color: var(--gold); color: var(--gold); }
 .filter-tab--active    { background: var(--gold); border-color: var(--gold); color: var(--black); font-weight: 700; }
+.filter-tab--active:hover { color: var(--black); }
 
 .results-count {
   font-size: 13px;
