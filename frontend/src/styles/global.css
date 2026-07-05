@@ -1538,3 +1538,19 @@ body {
 @media (max-width: 900px) {
   .charts-grid { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   PLATFORM VIEW (superadmin)
+   ============================================================ */
+
+.platform-empresa-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--black);
+  padding: 0;
+}
+.platform-empresa-link:hover { color: var(--gold-dark); }
+
+.platform-empresa-usuarios { padding: 16px 4px; }

@@ -162,6 +162,71 @@ app.patch('/api/platform/empresas/:id', requireSuperadmin, async (req, res) => {
   }
 });
 
+// Crea una joyería nueva junto con su primer usuario gerente (alta asistida por el superadmin)
+app.post('/api/platform/empresas', requireSuperadmin, async (req, res) => {
+  const { empresa_nombre, nombre, email, password } = req.body;
+  if (!empresa_nombre || !nombre || !email || !password)
+    return res.status(400).json({ error: 'Todos los campos son requeridos' });
+  if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [empresa] } = await client.query(
+      'INSERT INTO empresas (nombre) VALUES ($1) RETURNING *', [empresa_nombre]
+    );
+    const password_hash = await hashPassword(password);
+    await client.query(
+      `INSERT INTO usuarios (empresa_id, nombre, email, password_hash, rol)
+       VALUES ($1, $2, $3, $4, 'gerente')`,
+      [empresa.id, nombre, email.toLowerCase(), password_hash]
+    );
+    await client.query('COMMIT');
+    res.status(201).json({ ...empresa, total_usuarios: 1, total_productos: 0 });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    const msg = err.code === '23505' ? 'Ese correo ya está registrado' : err.message;
+    res.status(400).json({ error: msg });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/platform/empresas/:id/usuarios', requireSuperadmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, nombre, email, rol, activo, fecha_creacion FROM usuarios WHERE empresa_id = $1 ORDER BY fecha_creacion',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Crea un usuario (gerente o empleado) dentro de cualquier joyería existente
+app.post('/api/platform/empresas/:id/usuarios', requireSuperadmin, async (req, res) => {
+  const { nombre, email, password, rol = 'empleado' } = req.body;
+  if (!nombre || !email || !password) return res.status(400).json({ error: 'Nombre, correo y contraseña requeridos' });
+  if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  if (!['gerente', 'empleado'].includes(rol)) return res.status(400).json({ error: 'Rol inválido' });
+  try {
+    const { rows: [empresa] } = await pool.query('SELECT id FROM empresas WHERE id = $1', [req.params.id]);
+    if (!empresa) return res.status(404).json({ error: 'Empresa no encontrada' });
+    const password_hash = await hashPassword(password);
+    const { rows: [usuario] } = await pool.query(
+      `INSERT INTO usuarios (empresa_id, nombre, email, password_hash, rol)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, nombre, email, rol, activo, fecha_creacion`,
+      [req.params.id, nombre, email.toLowerCase(), password_hash, rol]
+    );
+    res.status(201).json(usuario);
+  } catch (err) {
+    const msg = err.code === '23505' ? 'Ese correo ya está registrado' : err.message;
+    res.status(400).json({ error: msg });
+  }
+});
+
 // ─── Usuarios (solo gerente) ───────────────────────────────────────────────────
 
 app.get('/api/users', requireGerente, async (req, res) => {
