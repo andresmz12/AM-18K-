@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ImageLightbox from './ImageLightbox';
+import { compressImage } from '../utils/image';
 
 const CATEGORIAS = ['Oro 18k', 'Laminado', 'Bisutería', 'Accesorios', 'Otro'];
 
@@ -51,38 +52,6 @@ export default function ProductForm({ product, onSave, onClose }) {
   }, [form.costo, form.porcentaje_ganancia]);
 
   const set = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
-
-  // Comprime la imagen en el navegador y la convierte a base64
-  // Se guarda directo en PostgreSQL → no depende del filesystem de Railway
-  const compressImage = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onerror = reject;
-    reader.onload = ev => {
-      const img = new Image();
-      img.src = ev.target.result;
-      img.onerror = reject;
-      img.onload = () => {
-        // 800px máx — buen balance entre calidad y tamaño para móvil
-        const MAX = 800;
-        let { width, height } = img;
-        if (width > height) {
-          if (width > MAX) { height = Math.round(height * MAX / width); width = MAX; }
-        } else {
-          if (height > MAX) { width = Math.round(width * MAX / height); height = MAX; }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width  = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        // Fondo blanco para evitar transparencias negras en JPEG
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.80));
-      };
-    };
-  });
 
   const handleImageUpload = async e => {
     const file = e.target.files[0];

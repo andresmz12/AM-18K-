@@ -82,6 +82,17 @@ async function init() {
       empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
       concepto        TEXT    NOT NULL,
       monto           REAL    NOT NULL,
+      recurrente      BOOLEAN NOT NULL DEFAULT false,
+      imagen_url      TEXT,
+      notas           TEXT,
+      fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS abonos (
+      id              SERIAL PRIMARY KEY,
+      empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
+      cliente         TEXT,
+      monto           REAL    NOT NULL,
       notas           TEXT,
       fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -115,6 +126,8 @@ async function init() {
     ALTER TABLE products     DROP CONSTRAINT IF EXISTS products_codigo_key;
     CREATE UNIQUE INDEX IF NOT EXISTS products_empresa_codigo_key ON products (empresa_id, codigo);
     ALTER TABLE empresas     ADD COLUMN IF NOT EXISTS activa BOOLEAN NOT NULL DEFAULT true;
+    ALTER TABLE gastos       ADD COLUMN IF NOT EXISTS recurrente BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE gastos       ADD COLUMN IF NOT EXISTS imagen_url TEXT;
   `);
 
   // ── Migración de roles: 'admin' → 'gerente', 'vendedor' → 'empleado' ───────

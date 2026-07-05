@@ -7,75 +7,38 @@ const cop = v =>
 
 const fmtFecha = str => new Date(str).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 
-export default function CierreCajaView({ apiFetch }) {
+export default function CierreCajaView({ apiFetch, onNavigate }) {
   const [resumen, setResumen]   = useState(null);
-  const [gastos, setGastos]     = useState([]);
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading]   = useState(true);
 
-  const [apertura, setApertura]         = useState('');
-  const [abonos, setAbonos]             = useState('');
+  const [apertura, setApertura]             = useState('');
   const [dineroEfectivo, setDineroEfectivo] = useState('');
   const [dineroCuenta, setDineroCuenta]     = useState('');
   const [notas, setNotas]               = useState('');
   const [error, setError]               = useState('');
   const [saving, setSaving]             = useState(false);
 
-  const [showGastoForm, setShowGastoForm] = useState(false);
-  const [gastoConcepto, setGastoConcepto] = useState('');
-  const [gastoMonto, setGastoMonto]       = useState('');
-  const [gastoError, setGastoError]       = useState('');
-
   const load = () => {
     setLoading(true);
     Promise.all([
       apiFetch('/api/cierres/hoy').then(r => r.json()),
-      apiFetch('/api/gastos?periodo=hoy').then(r => r.json()),
       apiFetch('/api/cierres').then(r => r.json())
-    ]).then(([hoy, gastosData, hist]) => {
+    ]).then(([hoy, hist]) => {
       setResumen(hoy);
-      setGastos(gastosData.gastos || []);
       setHistorial(hist);
     }).catch(console.error).finally(() => setLoading(false));
   };
 
   useEffect(load, []);
 
-  const handleAddGasto = async e => {
-    e.preventDefault();
-    setGastoError('');
-    const monto = parseFloat(gastoMonto);
-    if (!gastoConcepto || !monto || monto <= 0) {
-      setGastoError('Ingresa un concepto y un monto válido');
-      return;
-    }
-    const res = await apiFetch('/api/gastos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ concepto: gastoConcepto, monto })
-    });
-    if (res.ok) {
-      setGastoConcepto(''); setGastoMonto(''); setShowGastoForm(false);
-      load();
-    } else {
-      const data = await res.json();
-      setGastoError(data.error || 'Error al agregar el gasto');
-    }
-  };
-
-  const handleDeleteGasto = async id => {
-    if (!window.confirm('¿Eliminar este gasto?')) return;
-    await apiFetch(`/api/gastos/${id}`, { method: 'DELETE' });
-    load();
-  };
-
   const aperturaNum = parseFloat(apertura) || 0;
-  const abonosNum   = parseFloat(abonos) || 0;
   const efectivoNum = parseFloat(dineroEfectivo) || 0;
   const cuentaNum   = parseFloat(dineroCuenta) || 0;
   const ventas      = resumen?.ventas || 0;
+  const abonos      = resumen?.abonos || 0;
   const gastosDia   = resumen?.gastos || 0;
-  const totalEsperado = aperturaNum + ventas + abonosNum - gastosDia;
+  const totalEsperado = aperturaNum + ventas + abonos - gastosDia;
   const diferencia    = (efectivoNum + cuentaNum) - totalEsperado;
 
   const handleSubmit = async e => {
@@ -87,7 +50,7 @@ export default function CierreCajaView({ apiFetch }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          apertura: aperturaNum, abonos: abonosNum,
+          apertura: aperturaNum,
           dinero_efectivo: efectivoNum, dinero_cuenta: cuentaNum,
           notas: notas || null
         })
@@ -142,58 +105,32 @@ export default function CierreCajaView({ apiFetch }) {
             </div>
 
             <div className="sale-add-section">
-              <p className="sale-section-label">Ventas + abonos</p>
+              <p className="sale-section-label">Ventas + abonos de hoy (automático)</p>
               <div className="form-group">
-                <label>Ventas de hoy (automático)</label>
+                <label>Ventas</label>
                 <div className="precio-display">{cop(ventas)}</div>
               </div>
               <div className="form-group">
-                <label>Abonos recibidos (COP)</label>
-                <input type="number" min="0" step="0.01" value={abonos} onChange={e => setAbonos(e.target.value)} placeholder="0" />
+                <label>Abonos</label>
+                <div className="precio-display">{cop(abonos)}</div>
               </div>
+              {onNavigate && (
+                <button type="button" className="btn btn--outline" onClick={() => onNavigate('abonos')}>
+                  Ir a Abonos →
+                </button>
+              )}
             </div>
           </div>
 
           <div className="sale-add-section">
             <div className="inventory__header" style={{ marginBottom: 0 }}>
-              <p className="sale-section-label">Gastos de hoy — {cop(gastosDia)}</p>
-              <button type="button" className="btn btn--outline" onClick={() => setShowGastoForm(s => !s)}>
-                {showGastoForm ? 'Cancelar' : '+ Agregar gasto'}
-              </button>
+              <p className="sale-section-label">Gastos de hoy (automático) — {cop(gastosDia)}</p>
+              {onNavigate && (
+                <button type="button" className="btn btn--outline" onClick={() => onNavigate('gastos')}>
+                  Ir a Gastos →
+                </button>
+              )}
             </div>
-
-            {showGastoForm && (
-              <div className="form-grid" style={{ marginTop: 10 }}>
-                <div className="form-group">
-                  <label>Concepto</label>
-                  <input value={gastoConcepto} onChange={e => setGastoConcepto(e.target.value)} placeholder="Ej: Transporte, almuerzo..." />
-                </div>
-                <div className="form-group">
-                  <label>Monto (COP)</label>
-                  <input type="number" min="0" step="0.01" value={gastoMonto} onChange={e => setGastoMonto(e.target.value)} placeholder="0" />
-                </div>
-                <div className="form-group form-group--full">
-                  {gastoError && <p className="form-error">{gastoError}</p>}
-                  <button type="button" className="btn btn--primary" onClick={handleAddGasto}>Guardar gasto</button>
-                </div>
-              </div>
-            )}
-
-            {gastos.length > 0 && (
-              <div className="sale-cart-list" style={{ marginTop: 12 }}>
-                {gastos.map(g => (
-                  <div key={g.id} className="sale-cart-item">
-                    <div className="sale-cart-item__info">
-                      <span className="sale-cart-item__name">{g.concepto}</span>
-                    </div>
-                    <div className="sale-cart-item__nums">
-                      <strong className="sale-cart-item__sub">{cop(g.monto)}</strong>
-                    </div>
-                    <button type="button" className="btn-icon btn-icon--delete" onClick={() => handleDeleteGasto(g.id)} title="Quitar">✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="caja-grid">
@@ -210,7 +147,7 @@ export default function CierreCajaView({ apiFetch }) {
           <div className="caja-total-breakdown">
             <div className="total-row"><span>Apertura:</span><span>{cop(aperturaNum)}</span></div>
             <div className="total-row"><span>Ventas:</span><span>{cop(ventas)}</span></div>
-            <div className="total-row"><span>Abonos:</span><span>{cop(abonosNum)}</span></div>
+            <div className="total-row"><span>Abonos:</span><span>{cop(abonos)}</span></div>
             <div className="total-row"><span>Gastos:</span><span>-{cop(gastosDia)}</span></div>
             <div className="sale-total-row">
               <span className="sale-total-label">Total esperado en caja</span>

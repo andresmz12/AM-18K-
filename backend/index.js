@@ -733,7 +733,8 @@ app.get('/api/gastos', async (req, res) => {
   const where = filtros[periodo] || filtros.hoy;
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM gastos WHERE empresa_id = $1 AND ${where} ORDER BY fecha DESC`,
+      `SELECT id, empresa_id, concepto, monto, recurrente, imagen_url, notas, fecha
+       FROM gastos WHERE empresa_id = $1 AND ${where} ORDER BY fecha DESC`,
       [req.user.empresa_id]
     );
     res.json({ gastos: rows, total: rows.reduce((s, g) => s + g.monto, 0) });
@@ -743,13 +744,14 @@ app.get('/api/gastos', async (req, res) => {
 });
 
 app.post('/api/gastos', async (req, res) => {
-  const { concepto, monto, notas } = req.body;
+  const { concepto, monto, recurrente, imagen_url, notas } = req.body;
   if (!concepto || typeof monto !== 'number' || monto <= 0)
     return res.status(400).json({ error: 'Concepto y monto (mayor a 0) son requeridos' });
   try {
     const { rows: [gasto] } = await pool.query(
-      `INSERT INTO gastos (empresa_id, concepto, monto, notas) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [req.user.empresa_id, concepto, monto, notas || null]
+      `INSERT INTO gastos (empresa_id, concepto, monto, recurrente, imagen_url, notas)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [req.user.empresa_id, concepto, monto, !!recurrente, imagen_url || null, notas || null]
     );
     res.status(201).json(gasto);
   } catch (err) {
@@ -766,17 +768,64 @@ app.delete('/api/gastos/:id', async (req, res) => {
   }
 });
 
+// ─── Abonos ───────────────────────────────────────────────────────────────────
+
+app.get('/api/abonos', async (req, res) => {
+  const { periodo = 'hoy' } = req.query;
+  const filtros = {
+    hoy:    "fecha::date = CURRENT_DATE",
+    semana: "fecha >= NOW() - INTERVAL '7 days'",
+    mes:    "DATE_TRUNC('month', fecha) = DATE_TRUNC('month', NOW())"
+  };
+  const where = filtros[periodo] || filtros.hoy;
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM abonos WHERE empresa_id = $1 AND ${where} ORDER BY fecha DESC`,
+      [req.user.empresa_id]
+    );
+    res.json({ abonos: rows, total: rows.reduce((s, a) => s + a.monto, 0) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/abonos', async (req, res) => {
+  const { cliente, monto, notas } = req.body;
+  if (typeof monto !== 'number' || monto <= 0)
+    return res.status(400).json({ error: 'El monto debe ser mayor a 0' });
+  try {
+    const { rows: [abono] } = await pool.query(
+      `INSERT INTO abonos (empresa_id, cliente, monto, notas) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [req.user.empresa_id, cliente || null, monto, notas || null]
+    );
+    res.status(201).json(abono);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/abonos/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM abonos WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Cierre de caja ────────────────────────────────────────────────────────────
 
 async function resumenDelDia(empresaId) {
-  const [ventasR, kitsR, gastosR] = await Promise.all([
+  const [ventasR, kitsR, gastosR, abonosR] = await Promise.all([
     pool.query("SELECT COALESCE(SUM(total), 0) AS t FROM ventas WHERE empresa_id = $1 AND fecha::date = CURRENT_DATE", [empresaId]),
     pool.query("SELECT COALESCE(SUM(total), 0) AS t FROM kit_sales WHERE empresa_id = $1 AND fecha::date = CURRENT_DATE", [empresaId]),
-    pool.query("SELECT COALESCE(SUM(monto), 0) AS t FROM gastos WHERE empresa_id = $1 AND fecha::date = CURRENT_DATE", [empresaId])
+    pool.query("SELECT COALESCE(SUM(monto), 0) AS t FROM gastos WHERE empresa_id = $1 AND fecha::date = CURRENT_DATE", [empresaId]),
+    pool.query("SELECT COALESCE(SUM(monto), 0) AS t FROM abonos WHERE empresa_id = $1 AND fecha::date = CURRENT_DATE", [empresaId])
   ]);
   return {
     ventas: parseFloat(ventasR.rows[0].t) + parseFloat(kitsR.rows[0].t),
-    gastos: parseFloat(gastosR.rows[0].t)
+    gastos: parseFloat(gastosR.rows[0].t),
+    abonos: parseFloat(abonosR.rows[0].t)
   };
 }
 
@@ -813,14 +862,14 @@ app.get('/api/cierres/hoy', async (req, res) => {
 });
 
 app.post('/api/cierres', async (req, res) => {
-  const { apertura, abonos, dinero_efectivo, dinero_cuenta, notas } = req.body;
+  const { apertura, dinero_efectivo, dinero_cuenta, notas } = req.body;
   const empresaId = req.user.empresa_id;
-  const campos = { apertura, abonos, dinero_efectivo, dinero_cuenta };
+  const campos = { apertura, dinero_efectivo, dinero_cuenta };
   for (const [campo, valor] of Object.entries(campos)) {
     if (typeof valor !== 'number' || valor < 0) return res.status(400).json({ error: `Campo "${campo}" inválido` });
   }
   try {
-    const { ventas, gastos } = await resumenDelDia(empresaId);
+    const { ventas, gastos, abonos } = await resumenDelDia(empresaId);
     const total_esperado = apertura + ventas + abonos - gastos;
     const diferencia = (dinero_efectivo + dinero_cuenta) - total_esperado;
 
