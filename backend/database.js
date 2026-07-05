@@ -76,6 +76,33 @@ async function init() {
       notas           TEXT,
       fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS gastos (
+      id              SERIAL PRIMARY KEY,
+      empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
+      concepto        TEXT    NOT NULL,
+      monto           REAL    NOT NULL,
+      notas           TEXT,
+      fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS cierres_caja (
+      id              SERIAL PRIMARY KEY,
+      empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
+      usuario_id      INTEGER NOT NULL REFERENCES usuarios(id),
+      fecha           DATE    NOT NULL DEFAULT CURRENT_DATE,
+      apertura        REAL    NOT NULL DEFAULT 0,
+      ventas          REAL    NOT NULL DEFAULT 0,
+      abonos          REAL    NOT NULL DEFAULT 0,
+      gastos          REAL    NOT NULL DEFAULT 0,
+      total_esperado  REAL    NOT NULL DEFAULT 0,
+      dinero_efectivo REAL    NOT NULL DEFAULT 0,
+      dinero_cuenta   REAL    NOT NULL DEFAULT 0,
+      diferencia      REAL    NOT NULL DEFAULT 0,
+      notas           TEXT,
+      fecha_creacion  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (empresa_id, fecha)
+    );
   `);
 
   // ── Migración multi-tenant: agrega empresa_id a las tablas existentes ──────

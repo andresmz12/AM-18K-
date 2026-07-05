@@ -721,6 +721,123 @@ app.delete('/api/cotizaciones/:id', async (req, res) => {
   }
 });
 
+// ─── Gastos ───────────────────────────────────────────────────────────────────
+
+app.get('/api/gastos', async (req, res) => {
+  const { periodo = 'hoy' } = req.query;
+  const filtros = {
+    hoy:    "fecha::date = CURRENT_DATE",
+    semana: "fecha >= NOW() - INTERVAL '7 days'",
+    mes:    "DATE_TRUNC('month', fecha) = DATE_TRUNC('month', NOW())"
+  };
+  const where = filtros[periodo] || filtros.hoy;
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM gastos WHERE empresa_id = $1 AND ${where} ORDER BY fecha DESC`,
+      [req.user.empresa_id]
+    );
+    res.json({ gastos: rows, total: rows.reduce((s, g) => s + g.monto, 0) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/gastos', async (req, res) => {
+  const { concepto, monto, notas } = req.body;
+  if (!concepto || typeof monto !== 'number' || monto <= 0)
+    return res.status(400).json({ error: 'Concepto y monto (mayor a 0) son requeridos' });
+  try {
+    const { rows: [gasto] } = await pool.query(
+      `INSERT INTO gastos (empresa_id, concepto, monto, notas) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [req.user.empresa_id, concepto, monto, notas || null]
+    );
+    res.status(201).json(gasto);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/gastos/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM gastos WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Cierre de caja ────────────────────────────────────────────────────────────
+
+async function resumenDelDia(empresaId) {
+  const [ventasR, kitsR, gastosR] = await Promise.all([
+    pool.query("SELECT COALESCE(SUM(total), 0) AS t FROM ventas WHERE empresa_id = $1 AND fecha::date = CURRENT_DATE", [empresaId]),
+    pool.query("SELECT COALESCE(SUM(total), 0) AS t FROM kit_sales WHERE empresa_id = $1 AND fecha::date = CURRENT_DATE", [empresaId]),
+    pool.query("SELECT COALESCE(SUM(monto), 0) AS t FROM gastos WHERE empresa_id = $1 AND fecha::date = CURRENT_DATE", [empresaId])
+  ]);
+  return {
+    ventas: parseFloat(ventasR.rows[0].t) + parseFloat(kitsR.rows[0].t),
+    gastos: parseFloat(gastosR.rows[0].t)
+  };
+}
+
+app.get('/api/cierres', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT c.*, u.nombre AS usuario_nombre FROM cierres_caja c
+       JOIN usuarios u ON u.id = c.usuario_id
+       WHERE c.empresa_id = $1 ORDER BY c.fecha DESC LIMIT 30`,
+      [req.user.empresa_id]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/cierres/hoy', async (req, res) => {
+  const empresaId = req.user.empresa_id;
+  try {
+    const [resumen, existente] = await Promise.all([
+      resumenDelDia(empresaId),
+      pool.query(
+        `SELECT c.*, u.nombre AS usuario_nombre FROM cierres_caja c
+         JOIN usuarios u ON u.id = c.usuario_id
+         WHERE c.empresa_id = $1 AND c.fecha = CURRENT_DATE`,
+        [empresaId]
+      )
+    ]);
+    res.json({ ...resumen, cierre: existente.rows[0] || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/cierres', async (req, res) => {
+  const { apertura, abonos, dinero_efectivo, dinero_cuenta, notas } = req.body;
+  const empresaId = req.user.empresa_id;
+  const campos = { apertura, abonos, dinero_efectivo, dinero_cuenta };
+  for (const [campo, valor] of Object.entries(campos)) {
+    if (typeof valor !== 'number' || valor < 0) return res.status(400).json({ error: `Campo "${campo}" inválido` });
+  }
+  try {
+    const { ventas, gastos } = await resumenDelDia(empresaId);
+    const total_esperado = apertura + ventas + abonos - gastos;
+    const diferencia = (dinero_efectivo + dinero_cuenta) - total_esperado;
+
+    const { rows: [cierre] } = await pool.query(
+      `INSERT INTO cierres_caja
+        (empresa_id, usuario_id, apertura, ventas, abonos, gastos, total_esperado, dinero_efectivo, dinero_cuenta, diferencia, notas)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       RETURNING *`,
+      [empresaId, req.user.id, apertura, ventas, abonos, gastos, total_esperado, dinero_efectivo, dinero_cuenta, diferencia, notas || null]
+    );
+    res.status(201).json(cierre);
+  } catch (err) {
+    const msg = err.code === '23505' ? 'Ya existe un cierre de caja para hoy' : err.message;
+    res.status(400).json({ error: msg });
+  }
+});
+
 // ─── SPA fallback ─────────────────────────────────────────────────────────────
 
 app.get('/health', (req, res) => res.json({ ok: true }));

@@ -511,6 +511,7 @@ body {
   width: 100%;
   max-width: 740px;
   max-height: 92vh;
+  overflow-x: hidden;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
   border-top: 4px solid var(--gold);
@@ -528,7 +529,7 @@ body {
   top: 0;
   background: var(--white);
   z-index: 10;
-  border-radius: 14px 14px 0 0;
+  border-radius: 16px 16px 0 0;
 }
 .modal__header h3 { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
 
@@ -850,7 +851,6 @@ body {
   display: flex;
   gap: 0;
   border-bottom: 3px solid var(--gray-200);
-  margin: -24px -24px 28px;
   padding: 0 24px;
   background: var(--gray-50);
 }
@@ -1296,7 +1296,7 @@ body {
   .modal { border-radius: 12px; }
 
   /* Sale mode tabs mobile */
-  .sale-mode-tabs { margin: -16px -16px 20px; padding: 0 16px; }
+  .sale-mode-tabs { padding: 0 16px; }
   .sale-mode-tab { padding: 12px 8px; font-size: 12px; }
 
   /* Ventas resumen mobile */
@@ -1554,3 +1554,65 @@ body {
 .platform-empresa-link:hover { color: var(--gold-dark); }
 
 .platform-empresa-usuarios { padding: 16px 4px; }
+
+/* ============================================================
+   CIERRE DE CAJA
+   ============================================================ */
+
+.caja-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 640px) {
+  .caja-grid { grid-template-columns: 1fr; }
+}
+
+.caja-total-breakdown {
+  background: var(--black);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gold-dark);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.caja-total-breakdown .total-row { color: var(--gray-400); font-size: 13px; padding: 4px 0; display: flex; justify-content: space-between; }
+.caja-total-breakdown .sale-total-row { border-top: 1px solid var(--black-soft); margin-top: 6px; padding-top: 10px; }
+.caja-total-breakdown .sale-total-label { color: var(--gray-400); }
+
+.caja-diff--positiva { color: #2E7D32 !important; }
+.caja-diff--negativa { color: #C62828 !important; }
+.caja-total-breakdown .caja-diff--positiva,
+.caja-total-breakdown .caja-diff--negativa { color: inherit; }
+.caja-total-breakdown .precio-display.caja-diff--positiva { color: #66BB6A; }
+.caja-total-breakdown .precio-display.caja-diff--negativa { color: #EF5350; }
+
+.caja-resumen-card {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.caja-resumen-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 12px;
+}
+.caja-resumen-grid > div { display: flex; flex-direction: column; gap: 4px; }
+.caja-resumen-grid .text-muted { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.caja-resumen-grid strong { font-size: 18px; }
+
+.caja-resumen-notas {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--gray-200);
+  font-size: 13px;
+  color: var(--gray-600);
+}
+
+@media (max-width: 640px) {
+  .caja-resumen-grid { grid-template-columns: 1fr 1fr; }
+}
