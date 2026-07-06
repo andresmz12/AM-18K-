@@ -180,6 +180,22 @@ async function init() {
     ALTER TABLE cotizaciones ALTER COLUMN empresa_id SET NOT NULL;
     ALTER TABLE kit_sales    ALTER COLUMN empresa_id SET NOT NULL;
   `);
+
+  // ── Secreto JWT persistente ─────────────────────────────────────────────────
+  // Si no hay JWT_SECRET en el entorno, se genera uno una sola vez y se guarda
+  // en la base: las sesiones sobreviven reinicios y redeploys sin configurar nada.
+  await pool.query(`CREATE TABLE IF NOT EXISTS app_config (clave TEXT PRIMARY KEY, valor TEXT NOT NULL);`);
+  let jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    const crypto = require('crypto');
+    await pool.query(
+      `INSERT INTO app_config (clave, valor) VALUES ('jwt_secret', $1) ON CONFLICT (clave) DO NOTHING`,
+      [crypto.randomBytes(32).toString('hex')]
+    );
+    const { rows: [cfg] } = await pool.query(`SELECT valor FROM app_config WHERE clave = 'jwt_secret'`);
+    jwtSecret = cfg.valor;
+  }
+  return { jwtSecret };
 }
 
 module.exports = { pool, init };

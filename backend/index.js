@@ -3,7 +3,7 @@ const helmet  = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path    = require('path');
 const { pool, init } = require('./database');
-const { hashPassword, comparePassword, signToken, safeEqual, requireAuth, requireGerente, requireSuperadmin } = require('./auth');
+const { hashPassword, comparePassword, signToken, safeEqual, setJwtSecret, requireAuth, requireGerente, requireSuperadmin } = require('./auth');
 const { generarReporte } = require('./reports');
 const V = require('./validate');
 
@@ -1097,10 +1097,14 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
 
-app.listen(PORT, () => console.log(`AM 18K running on port ${PORT}`));
-
-if (!process.env.JWT_SECRET) {
-  console.warn('⚠ JWT_SECRET no está configurado — se generó uno aleatorio para este arranque, así que las sesiones se cerrarán en cada reinicio. Configúralo en Railway para sesiones persistentes.');
-}
-
-init().catch(err => console.error('DB init error:', err));
+// El puerto se abre solo cuando la base está migrada y el secreto JWT cargado —
+// así ninguna request llega antes de que el servidor pueda atenderla bien.
+init()
+  .then(({ jwtSecret }) => {
+    setJwtSecret(jwtSecret);
+    app.listen(PORT, () => console.log(`AM 18K running on port ${PORT}`));
+  })
+  .catch(err => {
+    console.error('DB init error:', err);
+    process.exit(1);
+  });

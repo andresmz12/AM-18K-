@@ -3,10 +3,14 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { pool } = require('./database');
 
-// Sin JWT_SECRET configurado se genera uno aleatorio por arranque: las sesiones
-// se invalidan en cada reinicio, pero nunca se usa un secreto conocido públicamente.
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+// El secreto se resuelve al arrancar (variable de entorno o generado y
+// persistido en la base por init()) y se inyecta aquí antes de abrir el puerto.
+let JWT_SECRET = null;
 const TOKEN_EXPIRY = '30d';
+
+function setJwtSecret(secret) {
+  JWT_SECRET = secret;
+}
 
 function hashPassword(password) {
   return bcrypt.hash(password, 10);
@@ -72,4 +76,4 @@ function requireSuperadmin(req, res, next) {
   next();
 }
 
-module.exports = { hashPassword, comparePassword, signToken, safeEqual, requireAuth, requireGerente, requireSuperadmin };
+module.exports = { hashPassword, comparePassword, signToken, safeEqual, setJwtSecret, requireAuth, requireGerente, requireSuperadmin };
