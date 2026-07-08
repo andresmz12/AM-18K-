@@ -4,6 +4,7 @@ const ROL_LABEL = { gerente: 'Gerente', empleado: 'Empleado', superadmin: 'Admin
 
 export default function Header({ view, setView, onAdd, onExport, user, onLogout, platformMode }) {
   const isGerente = user?.rol === 'gerente';
+  const showInventoryActions = isGerente && view === 'inventory';
 
   return (
     <header className="header">
@@ -80,12 +81,12 @@ export default function Header({ view, setView, onAdd, onExport, user, onLogout,
       {platformMode && <div style={{ flex: 1 }} />}
 
       <div className="header__actions">
-        {isGerente && (
+        {showInventoryActions && (
           <button className="btn btn--outline" onClick={onExport}>
             ↓ Exportar CSV
           </button>
         )}
-        {isGerente && (
+        {showInventoryActions && (
           <button className="btn btn--primary" onClick={onAdd}>
             + Agregar
           </button>
