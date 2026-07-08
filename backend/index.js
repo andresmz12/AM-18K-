@@ -138,8 +138,38 @@ app.get('/api/auth/me', requireAuth, async (req, res) => {
 // ─── Bootstrap del superadmin (uso único, sin necesidad de terminal) ──────────
 // Protegido por SETUP_SECRET (variable de entorno). Sin esa variable configurada
 // en Railway, esta ruta siempre responde 404 y no hace nada.
-app.get('/api/setup/superadmin', async (req, res) => {
-  const { secret, nombre, email, password } = req.query;
+//
+// El GET solo verifica el secreto y devuelve un formulario; los datos (incluida
+// la contraseña) se envían por POST en el body, nunca en la URL — así no quedan
+// en logs del servidor/proxy, en el header Referer ni en el historial del navegador.
+const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[c]));
+
+app.get('/api/setup/superadmin', (req, res) => {
+  const { secret } = req.query;
+  if (!process.env.SETUP_SECRET || !secret || !safeEqual(secret, process.env.SETUP_SECRET)) {
+    return res.status(404).send('Not found');
+  }
+  res.type('html').send(`
+    <!doctype html><html><head><meta charset="utf-8"><title>Bootstrap superadmin — AM 18K</title>
+    <style>body{font-family:system-ui,sans-serif;max-width:420px;margin:60px auto;padding:0 20px}
+    label{display:block;margin-top:14px;font-weight:600}input{width:100%;padding:8px;margin-top:4px;box-sizing:border-box}
+    button{margin-top:20px;padding:10px 16px;cursor:pointer}</style></head><body>
+    <h2>Crear cuenta de superadmin</h2>
+    <form method="POST" action="/api/setup/superadmin">
+      <input type="hidden" name="secret" value="${escapeHtml(secret)}">
+      <label>Nombre<input name="nombre" required></label>
+      <label>Correo<input type="email" name="email" required></label>
+      <label>Contraseña<input type="password" name="password" minlength="6" required></label>
+      <button type="submit">Crear / actualizar superadmin</button>
+    </form>
+    </body></html>
+  `);
+});
+
+app.post('/api/setup/superadmin', express.urlencoded({ extended: false }), async (req, res) => {
+  const { secret, nombre, email, password } = req.body;
   if (!process.env.SETUP_SECRET || !secret || !safeEqual(secret, process.env.SETUP_SECRET)) {
     return res.status(404).send('Not found');
   }
@@ -823,7 +853,7 @@ app.post('/api/cotizaciones', async (req, res) => {
   }
 });
 
-app.delete('/api/cotizaciones/:id', async (req, res) => {
+app.delete('/api/cotizaciones/:id', requireGerente, async (req, res) => {
   try {
     await pool.query('DELETE FROM cotizaciones WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
     res.json({ ok: true });
@@ -875,7 +905,7 @@ app.post('/api/gastos', async (req, res) => {
   }
 });
 
-app.delete('/api/gastos/:id', async (req, res) => {
+app.delete('/api/gastos/:id', requireGerente, async (req, res) => {
   try {
     await pool.query('DELETE FROM gastos WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
     res.json({ ok: true });
@@ -947,6 +977,25 @@ app.get('/api/cuentas-por-cobrar/:id', async (req, res) => {
   }
 });
 
+// Corrige el nombre del cliente o la descripción de la cuenta (no afecta montos/abonos)
+app.patch('/api/cuentas-por-cobrar/:id', async (req, res) => {
+  const cliente     = V.str(req.body.cliente, 200);
+  const descripcion = V.optStr(req.body.descripcion, 500);
+  if (!cliente) return res.status(400).json({ error: 'Cliente requerido' });
+  if (descripcion === undefined) return res.status(400).json({ error: 'Texto demasiado largo' });
+  try {
+    const { rows: [cuenta] } = await pool.query(
+      `UPDATE cuentas_por_cobrar SET cliente = $1, descripcion = $2
+       WHERE id = $3 AND empresa_id = $4 RETURNING *`,
+      [cliente, descripcion, req.params.id, req.user.empresa_id]
+    );
+    if (!cuenta) return res.status(404).json({ error: 'Cuenta no encontrada' });
+    res.json(cuenta);
+  } catch (err) {
+    serverError(res, err);
+  }
+});
+
 app.delete('/api/cuentas-por-cobrar/:id', requireGerente, async (req, res) => {
   try {
     const { rows: [cuenta] } = await pool.query(
@@ -1001,7 +1050,50 @@ app.post('/api/cuentas-por-cobrar/:id/abonos', async (req, res) => {
   }
 });
 
-app.delete('/api/abonos/:id', async (req, res) => {
+// Corrige el monto o las notas de un abono ya registrado (solo gerente, ajuste financiero)
+app.patch('/api/abonos/:id', requireGerente, async (req, res) => {
+  const monto = V.num(req.body.monto, { min: 0.01 });
+  const notas = V.optStr(req.body.notas, 2000);
+  if (monto === null) return res.status(400).json({ error: 'El monto debe ser mayor a 0' });
+  if (notas === undefined) return res.status(400).json({ error: 'Texto demasiado largo' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [abono] } = await client.query(
+      'SELECT * FROM abonos WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]
+    );
+    if (!abono) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Abono no encontrado' });
+    }
+    // FOR UPDATE bloquea la cuenta: el nuevo monto no puede exceder el saldo disponible
+    const { rows: [cuenta] } = await client.query(
+      'SELECT * FROM cuentas_por_cobrar WHERE id = $1 FOR UPDATE', [abono.cuenta_id]
+    );
+    const { rows: [{ t }] } = await client.query(
+      'SELECT COALESCE(SUM(monto), 0) AS t FROM abonos WHERE cuenta_id = $1 AND id != $2',
+      [abono.cuenta_id, abono.id]
+    );
+    const saldoDisponible = cuenta.monto_total - parseFloat(t);
+    if (monto > saldoDisponible + 0.01) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: `El abono no puede ser mayor al saldo disponible (${saldoDisponible})` });
+    }
+    const { rows: [actualizado] } = await client.query(
+      'UPDATE abonos SET monto = $1, notas = $2 WHERE id = $3 RETURNING *',
+      [monto, notas, abono.id]
+    );
+    await client.query('COMMIT');
+    res.json(actualizado);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    serverError(res, err);
+  } finally {
+    client.release();
+  }
+});
+
+app.delete('/api/abonos/:id', requireGerente, async (req, res) => {
   try {
     await pool.query('DELETE FROM abonos WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
     res.json({ ok: true });

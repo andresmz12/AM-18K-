@@ -79,13 +79,18 @@ function NuevaCuentaForm({ apiFetch, onDone, onCancel }) {
   );
 }
 
-function CuentaDetalle({ apiFetch, cuentaId, onChange }) {
+function CuentaDetalle({ apiFetch, cuentaId, onChange, isGerente }) {
   const [detalle, setDetalle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [monto, setMonto]     = useState('');
   const [notas, setNotas]     = useState('');
   const [error, setError]     = useState('');
   const [saving, setSaving]   = useState(false);
+  const [editId, setEditId]     = useState(null);
+  const [editMonto, setEditMonto] = useState('');
+  const [editNotas, setEditNotas] = useState('');
+  const [editError, setEditError] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -127,6 +132,38 @@ function CuentaDetalle({ apiFetch, cuentaId, onChange }) {
     await apiFetch(`/api/abonos/${id}`, { method: 'DELETE' });
     load();
     onChange();
+  };
+
+  const startEditAbono = a => {
+    setEditId(a.id);
+    setEditMonto(String(a.monto));
+    setEditNotas(a.notas || '');
+    setEditError('');
+  };
+
+  const cancelEditAbono = () => setEditId(null);
+
+  const handleSaveAbono = async id => {
+    setEditError('');
+    const montoNum = parseFloat(editMonto);
+    if (!montoNum || montoNum <= 0) { setEditError('Ingresa un monto válido'); return; }
+    setEditSaving(true);
+    try {
+      const res = await apiFetch(`/api/abonos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monto: montoNum, notas: editNotas || null })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al actualizar el abono');
+      setEditId(null);
+      load();
+      onChange();
+    } catch (err) {
+      setEditError(err.message);
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   if (loading || !detalle) return <div className="loading">Cargando...</div>;
@@ -171,14 +208,36 @@ function CuentaDetalle({ apiFetch, cuentaId, onChange }) {
             </thead>
             <tbody>
               {detalle.abonos.map(a => (
-                <tr key={a.id}>
-                  <td className="td-fecha">{fmtFecha(a.fecha)}</td>
-                  <td className="td-num"><strong>{cop(a.monto)}</strong></td>
-                  <td>{a.notas || <span className="text-muted">—</span>}</td>
-                  <td>
-                    <button className="btn-icon btn-icon--delete" onClick={() => handleDeleteAbono(a.id)} title="Eliminar">✕</button>
-                  </td>
-                </tr>
+                editId === a.id ? (
+                  <tr key={a.id}>
+                    <td className="td-fecha">{fmtFecha(a.fecha)}</td>
+                    <td className="td-num">
+                      <input type="number" min="0" step="0.01" value={editMonto}
+                        onChange={e => setEditMonto(e.target.value)} style={{ width: 110 }} />
+                    </td>
+                    <td>
+                      <input value={editNotas} onChange={e => setEditNotas(e.target.value)} placeholder="Notas" />
+                      {editError && <p className="form-error">{editError}</p>}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button type="button" className="btn-icon btn-icon--edit" title="Guardar" disabled={editSaving}
+                        onClick={() => handleSaveAbono(a.id)}>✓</button>
+                      <button type="button" className="btn-icon" title="Cancelar" onClick={cancelEditAbono}>✕</button>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={a.id}>
+                    <td className="td-fecha">{fmtFecha(a.fecha)}</td>
+                    <td className="td-num"><strong>{cop(a.monto)}</strong></td>
+                    <td>{a.notas || <span className="text-muted">—</span>}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {isGerente && (
+                        <button className="btn-icon btn-icon--edit" title="Editar" onClick={() => startEditAbono(a)}>✎</button>
+                      )}
+                      <button className="btn-icon btn-icon--delete" onClick={() => handleDeleteAbono(a.id)} title="Eliminar">✕</button>
+                    </td>
+                  </tr>
+                )
               ))}
             </tbody>
           </table>
@@ -194,6 +253,11 @@ export default function CuentasPorCobrarView({ apiFetch, isGerente }) {
   const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [expanded, setExpanded] = useState(null);
+  const [editId, setEditId]         = useState(null);
+  const [editCliente, setEditCliente]       = useState('');
+  const [editDescripcion, setEditDescripcion] = useState('');
+  const [editError, setEditError]   = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -211,6 +275,38 @@ export default function CuentasPorCobrarView({ apiFetch, isGerente }) {
     if (!window.confirm('¿Eliminar esta cuenta y todos sus abonos?')) return;
     const res = await apiFetch(`/api/cuentas-por-cobrar/${id}`, { method: 'DELETE' });
     if (res.ok) { if (expanded === id) setExpanded(null); load(); }
+  };
+
+  const startEdit = (e, c) => {
+    e.stopPropagation();
+    setEditId(c.id);
+    setEditCliente(c.cliente);
+    setEditDescripcion(c.descripcion || '');
+    setEditError('');
+  };
+
+  const cancelEdit = e => { e.stopPropagation(); setEditId(null); };
+
+  const handleSaveEdit = async (e, id) => {
+    e.stopPropagation();
+    setEditError('');
+    if (!editCliente.trim()) { setEditError('El nombre del cliente es requerido'); return; }
+    setEditSaving(true);
+    try {
+      const res = await apiFetch(`/api/cuentas-por-cobrar/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente: editCliente, descripcion: editDescripcion || null })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al actualizar la cuenta');
+      setEditId(null);
+      load();
+    } catch (err) {
+      setEditError(err.message);
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const totalPendiente = cuentas.reduce((s, c) => s + (c.estado === 'pendiente' ? c.saldo : 0), 0);
@@ -263,27 +359,48 @@ export default function CuentasPorCobrarView({ apiFetch, isGerente }) {
         <div className="cotizar-saved-list">
           {cuentas.map(c => (
             <div key={c.id} className={`cotizar-saved-item ${expanded === c.id ? 'cotizar-saved-item--open' : ''}`}>
-              <div className="cotizar-saved-item__head" onClick={() => setExpanded(expanded === c.id ? null : c.id)}>
-                <div className="cotizar-saved-item__info">
-                  <span className="cotizar-saved-item__cliente">{c.cliente}</span>
-                  <span className="cotizar-saved-item__meta">
-                    {c.descripcion ? `${c.descripcion} · ` : ''}{fmtFecha(c.fecha_creacion)}
-                    {' · '}<span className={c.estado === 'pagada' ? 'caja-diff--positiva' : ''}>
-                      {c.estado === 'pagada' ? 'Pagada' : 'Pendiente'}
+              {editId === c.id ? (
+                <div className="cotizar-saved-item__head" onClick={e => e.stopPropagation()}>
+                  <div className="form-grid" style={{ flex: 1, marginRight: 10 }}>
+                    <div className="form-group">
+                      <input value={editCliente} onChange={e => setEditCliente(e.target.value)} placeholder="Nombre del cliente" />
+                    </div>
+                    <div className="form-group">
+                      <input value={editDescripcion} onChange={e => setEditDescripcion(e.target.value)} placeholder="Descripción (opcional)" />
+                    </div>
+                  </div>
+                  <div className="cotizar-saved-item__right">
+                    {editError && <p className="form-error">{editError}</p>}
+                    <button type="button" className="btn btn--primary" disabled={editSaving} onClick={e => handleSaveEdit(e, c.id)}>
+                      {editSaving ? 'Guardando...' : 'Guardar'}
+                    </button>
+                    <button type="button" className="btn btn--outline" onClick={cancelEdit}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="cotizar-saved-item__head" onClick={() => setExpanded(expanded === c.id ? null : c.id)}>
+                  <div className="cotizar-saved-item__info">
+                    <span className="cotizar-saved-item__cliente">{c.cliente}</span>
+                    <span className="cotizar-saved-item__meta">
+                      {c.descripcion ? `${c.descripcion} · ` : ''}{fmtFecha(c.fecha_creacion)}
+                      {' · '}<span className={c.estado === 'pagada' ? 'caja-diff--positiva' : ''}>
+                        {c.estado === 'pagada' ? 'Pagada' : 'Pendiente'}
+                      </span>
                     </span>
-                  </span>
+                  </div>
+                  <div className="cotizar-saved-item__right">
+                    <span className="cotizar-saved-item__total">{cop(c.saldo)}</span>
+                    <button className="btn-icon btn-icon--edit" title="Editar nombre/descripción" onClick={e => startEdit(e, c)}>✎</button>
+                    {isGerente && (
+                      <button className="btn-icon btn-icon--delete" onClick={e => handleDelete(e, c.id)} title="Eliminar cuenta">✕</button>
+                    )}
+                    <span className="cotizar-saved-item__arrow">{expanded === c.id ? '▲' : '▼'}</span>
+                  </div>
                 </div>
-                <div className="cotizar-saved-item__right">
-                  <span className="cotizar-saved-item__total">{cop(c.saldo)}</span>
-                  {isGerente && (
-                    <button className="btn-icon btn-icon--delete" onClick={e => handleDelete(e, c.id)} title="Eliminar cuenta">✕</button>
-                  )}
-                  <span className="cotizar-saved-item__arrow">{expanded === c.id ? '▲' : '▼'}</span>
-                </div>
-              </div>
+              )}
               {expanded === c.id && (
                 <div className="cotizar-saved-item__body">
-                  <CuentaDetalle apiFetch={apiFetch} cuentaId={c.id} onChange={load} />
+                  <CuentaDetalle apiFetch={apiFetch} cuentaId={c.id} onChange={load} isGerente={isGerente} />
                 </div>
               )}
             </div>

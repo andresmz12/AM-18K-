@@ -28,12 +28,13 @@ function signToken(user) {
   );
 }
 
-// Comparación en tiempo constante para secretos pasados por query/header
+// Comparación en tiempo constante para secretos pasados por query/header.
+// Se comparan los hashes (largo fijo de 32 bytes) en vez de los valores
+// crudos para no filtrar por timing la longitud del secreto real.
 function safeEqual(a, b) {
-  const ba = Buffer.from(String(a));
-  const bb = Buffer.from(String(b));
-  if (ba.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ba, bb);
+  const ha = crypto.createHash('sha256').update(String(a)).digest();
+  const hb = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
 }
 
 // El token solo lleva el id; rol/empresa se leen de la base en cada request.

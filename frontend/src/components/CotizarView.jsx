@@ -23,6 +23,7 @@ export default function CotizarView({ products, apiFetch }) {
   // ── Estado carrito ──────────────────────────────────────────────────────────
   const [cart, setCart]           = useState([]);
   const [productoId, setProductoId] = useState('');
+  const [busqueda, setBusqueda]   = useState('');
   const [cantidad, setCantidad]   = useState('1');
   const [precio, setPrecio]       = useState('');
   const [cliente, setCliente]     = useState('');
@@ -38,6 +39,15 @@ export default function CotizarView({ products, apiFetch }) {
   const cantidadNum = parseInt(cantidad)  || 0;
   const precioNum   = parseFloat(precio)  || 0;
   const total       = cart.reduce((s, i) => s + i.subtotal, 0);
+
+  const busquedaNorm = busqueda.trim().toLowerCase();
+  const productosFiltrados = busquedaNorm
+    ? products.filter(p =>
+        p.nombre.toLowerCase().includes(busquedaNorm) ||
+        p.codigo.toLowerCase().includes(busquedaNorm) ||
+        (p.categoria || '').toLowerCase().includes(busquedaNorm)
+      )
+    : products;
 
   useEffect(() => {
     if (producto) setPrecio(String(producto.precio_venta));
@@ -64,14 +74,14 @@ export default function CotizarView({ products, apiFetch }) {
         subtotal:        cantidadNum * precioNum
       }
     ]);
-    setProductoId(''); setCantidad('1'); setPrecio('');
+    setProductoId(''); setCantidad('1'); setPrecio(''); setBusqueda('');
   };
 
   const removeFromCart = idx => setCart(prev => prev.filter((_, i) => i !== idx));
 
   const handleNew = () => {
     setCart([]); setCliente(''); setNotas('');
-    setProductoId(''); setCantidad('1'); setPrecio('');
+    setProductoId(''); setCantidad('1'); setPrecio(''); setBusqueda('');
   };
 
   // ── Guardar en DB ────────────────────────────────────────────────────────────
@@ -157,9 +167,24 @@ export default function CotizarView({ products, apiFetch }) {
         <div className="form-grid">
           <div className="form-group form-group--full">
             <label>Producto</label>
-            <select value={productoId} onChange={e => setProductoId(e.target.value)}>
-              <option value="">— Seleccionar producto —</option>
-              {products.map(p => (
+            <input
+              type="text"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre, código o categoría..."
+              style={{ marginBottom: 8 }}
+            />
+            <select
+              value={productoId}
+              onChange={e => setProductoId(e.target.value)}
+              size={busquedaNorm ? Math.min(productosFiltrados.length + 1, 8) : undefined}
+            >
+              <option value="">
+                {busquedaNorm
+                  ? `— ${productosFiltrados.length} resultado${productosFiltrados.length !== 1 ? 's' : ''} —`
+                  : '— Seleccionar producto —'}
+              </option>
+              {productosFiltrados.map(p => (
                 <option key={p.id} value={p.id}>[{p.codigo}] {p.nombre}</option>
               ))}
             </select>
