@@ -366,6 +366,13 @@ app.delete('/api/users/:id', requireGerente, async (req, res) => {
     await pool.query('DELETE FROM usuarios WHERE id = $1', [id]);
     res.json({ ok: true });
   } catch (err) {
+    // 23503: el usuario tiene ventas/cierres registrados — desactivarlo en vez de borrarlo
+    if (err.code === '23503') {
+      try {
+        await pool.query('UPDATE usuarios SET activo = false WHERE id = $1 AND empresa_id = $2', [id, req.user.empresa_id]);
+        return res.json({ ok: true, desactivado: true });
+      } catch (e2) { return serverError(res, e2); }
+    }
     serverError(res, err);
   }
 });
@@ -575,6 +582,9 @@ app.delete('/api/products/:id', requireGerente, async (req, res) => {
     await pool.query('DELETE FROM products WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
     res.json({ ok: true });
   } catch (err) {
+    // 23503: el producto tiene ventas asociadas — no se puede borrar sin perder historial
+    if (err.code === '23503')
+      return res.status(400).json({ error: 'No se puede eliminar: el producto tiene ventas registradas. Puedes dejarlo con stock 0.' });
     serverError(res, err);
   }
 });

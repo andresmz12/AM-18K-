@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import AuthView from './components/AuthView';
+import LandingPage from './components/LandingPage';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
 import ProductTable from './components/ProductTable';
@@ -30,6 +31,7 @@ export default function App() {
   const [categoria, setCategoria]       = useState('Todas');
   const [tick, setTick]                 = useState(0);
   const [notification, setNotification] = useState(null);
+  const [authScreen, setAuthScreen]     = useState(null); // null = landing | 'login' | 'signup'
 
   const isGerente = user?.rol === 'gerente';
   const refresh = () => setTick(t => t + 1);
@@ -103,7 +105,11 @@ export default function App() {
 
   const handleDelete = async id => {
     if (!window.confirm('¿Eliminar este producto?')) return;
-    await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return notify(err.error || 'Error al eliminar el producto', 'error');
+    }
     refresh();
     notify('Producto eliminado');
   };
@@ -150,7 +156,15 @@ export default function App() {
   }
 
   if (!user) {
-    return <AuthView />;
+    if (!authScreen) {
+      return (
+        <LandingPage
+          onLogin={() => setAuthScreen('login')}
+          onSignup={() => setAuthScreen('signup')}
+        />
+      );
+    }
+    return <AuthView initialMode={authScreen} onBack={() => setAuthScreen(null)} />;
   }
 
   if (user.rol === 'superadmin') {

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-export default function AuthView() {
+export default function AuthView({ initialMode = 'login', onBack }) {
   const { login, signup } = useAuth();
-  const [mode, setMode]       = useState('login'); // 'login' | 'signup'
+  const [mode, setMode]       = useState(initialMode); // 'login' | 'signup'
   const [empresa, setEmpresa] = useState('');
   const [nombre, setNombre]   = useState('');
   const [email, setEmail]     = useState('');
@@ -28,6 +28,11 @@ export default function AuthView() {
   return (
     <div className="auth-view">
       <div className="auth-card">
+        {onBack && (
+          <button type="button" className="auth-card__back" onClick={onBack}>
+            ← Volver
+          </button>
+        )}
         <div className="auth-card__badge" aria-hidden="true">◈</div>
         <div className="auth-card__brand">
           <h1>AM 18K</h1>
