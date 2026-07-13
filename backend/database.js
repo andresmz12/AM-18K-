@@ -1,4 +1,10 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
+
+// Postgres no parsea NUMERIC como número por defecto (para no perder precisión
+// con valores enormes) — lo devuelve como string. Como usamos NUMERIC solo para
+// montos en COP (dentro de rangos normales), lo forzamos a float para que el
+// resto del código pueda seguir haciendo aritmética directa sobre las columnas.
+types.setTypeParser(types.builtins.NUMERIC, val => (val === null ? null : parseFloat(val)));
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -14,7 +20,7 @@ async function init() {
       fecha_creacion  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    -- Roles: 'superadmin' (dueños de AM 18K, administran la plataforma y todas las joyerías),
+    -- Roles: 'superadmin' (dueños de AuraSistems, administran la plataforma y todas las joyerías),
     -- 'gerente' (dueño/encargado de una joyería cliente, ve costos y administra su inventario/equipo),
     -- 'empleado' (registra ventas y cotizaciones, sin acceso a costos ni utilidades).
     CREATE TABLE IF NOT EXISTS usuarios (
@@ -35,9 +41,9 @@ async function init() {
       categoria           TEXT    NOT NULL DEFAULT 'Otro',
       descripcion         TEXT,
       peso_gramos         REAL,
-      costo               REAL    NOT NULL DEFAULT 0,
-      porcentaje_ganancia REAL    NOT NULL DEFAULT 0,
-      precio_venta        REAL    NOT NULL DEFAULT 0,
+      costo               NUMERIC(14,2) NOT NULL DEFAULT 0,
+      porcentaje_ganancia NUMERIC(10,3) NOT NULL DEFAULT 0,
+      precio_venta        NUMERIC(14,2) NOT NULL DEFAULT 0,
       stock               INTEGER NOT NULL DEFAULT 0,
       stock_minimo        INTEGER NOT NULL DEFAULT 1,
       proveedor           TEXT,
@@ -50,8 +56,8 @@ async function init() {
       id              SERIAL PRIMARY KEY,
       producto_id     INTEGER NOT NULL REFERENCES products(id),
       cantidad        INTEGER NOT NULL,
-      precio_unitario REAL    NOT NULL,
-      total           REAL    NOT NULL,
+      precio_unitario NUMERIC(14,2) NOT NULL,
+      total           NUMERIC(14,2) NOT NULL,
       notas           TEXT,
       fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -60,7 +66,7 @@ async function init() {
       id      SERIAL PRIMARY KEY,
       cliente TEXT,
       items   JSONB        NOT NULL DEFAULT '[]',
-      total   REAL         NOT NULL DEFAULT 0,
+      total   NUMERIC(14,2) NOT NULL DEFAULT 0,
       notas   TEXT,
       fecha   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     );
@@ -69,9 +75,9 @@ async function init() {
       id              SERIAL PRIMARY KEY,
       nombre_kit      TEXT    NOT NULL,
       componentes     JSONB   NOT NULL DEFAULT '[]',
-      mano_obra       REAL    NOT NULL DEFAULT 0,
-      valor_extra     REAL    NOT NULL DEFAULT 0,
-      total           REAL    NOT NULL,
+      mano_obra       NUMERIC(14,2) NOT NULL DEFAULT 0,
+      valor_extra     NUMERIC(14,2) NOT NULL DEFAULT 0,
+      total           NUMERIC(14,2) NOT NULL,
       cliente         TEXT,
       notas           TEXT,
       fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -81,7 +87,7 @@ async function init() {
       id              SERIAL PRIMARY KEY,
       empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
       concepto        TEXT    NOT NULL,
-      monto           REAL    NOT NULL,
+      monto           NUMERIC(14,2) NOT NULL,
       recurrente      BOOLEAN NOT NULL DEFAULT false,
       imagen_url      TEXT,
       notas           TEXT,
@@ -94,7 +100,7 @@ async function init() {
       usuario_id      INTEGER REFERENCES usuarios(id),
       cliente         TEXT    NOT NULL,
       descripcion     TEXT,
-      monto_total     REAL    NOT NULL,
+      monto_total     NUMERIC(14,2) NOT NULL,
       notas           TEXT,
       fecha_creacion  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -105,7 +111,7 @@ async function init() {
       empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
       cuenta_id       INTEGER REFERENCES cuentas_por_cobrar(id),
       cliente         TEXT,
-      monto           REAL    NOT NULL,
+      monto           NUMERIC(14,2) NOT NULL,
       notas           TEXT,
       fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -115,14 +121,14 @@ async function init() {
       empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
       usuario_id      INTEGER NOT NULL REFERENCES usuarios(id),
       fecha           DATE    NOT NULL DEFAULT CURRENT_DATE,
-      apertura        REAL    NOT NULL DEFAULT 0,
-      ventas          REAL    NOT NULL DEFAULT 0,
-      abonos          REAL    NOT NULL DEFAULT 0,
-      gastos          REAL    NOT NULL DEFAULT 0,
-      total_esperado  REAL    NOT NULL DEFAULT 0,
-      dinero_efectivo REAL    NOT NULL DEFAULT 0,
-      dinero_cuenta   REAL    NOT NULL DEFAULT 0,
-      diferencia      REAL    NOT NULL DEFAULT 0,
+      apertura        NUMERIC(14,2) NOT NULL DEFAULT 0,
+      ventas          NUMERIC(14,2) NOT NULL DEFAULT 0,
+      abonos          NUMERIC(14,2) NOT NULL DEFAULT 0,
+      gastos          NUMERIC(14,2) NOT NULL DEFAULT 0,
+      total_esperado  NUMERIC(14,2) NOT NULL DEFAULT 0,
+      dinero_efectivo NUMERIC(14,2) NOT NULL DEFAULT 0,
+      dinero_cuenta   NUMERIC(14,2) NOT NULL DEFAULT 0,
+      diferencia      NUMERIC(14,2) NOT NULL DEFAULT 0,
       notas           TEXT,
       fecha_creacion  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (empresa_id, fecha)
@@ -145,6 +151,39 @@ async function init() {
     ALTER TABLE kit_sales    ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id);
     ALTER TABLE abonos       ADD COLUMN IF NOT EXISTS cuenta_id INTEGER REFERENCES cuentas_por_cobrar(id);
   `);
+
+  // ── Precisión monetaria: REAL (float) → NUMERIC ─────────────────────────────
+  // REAL puede acumular errores de redondeo en sumas de dinero; NUMERIC no.
+  // OJO: castear real::numeric(p,s) directamente trunca mal en Postgres cuando el
+  // valor tiene más cifras significativas que la precisión de un float4 (p.ej.
+  // 100000.33 quedaba en 100000.00). Por eso se pasa primero por double precision.
+  await pool.query(`
+    ALTER TABLE products         ALTER COLUMN costo               TYPE NUMERIC(14,2) USING costo::double precision::numeric(14,2);
+    ALTER TABLE products         ALTER COLUMN porcentaje_ganancia  TYPE NUMERIC(10,3) USING porcentaje_ganancia::double precision::numeric(10,3);
+    ALTER TABLE products         ALTER COLUMN precio_venta         TYPE NUMERIC(14,2) USING precio_venta::double precision::numeric(14,2);
+    ALTER TABLE ventas           ALTER COLUMN precio_unitario      TYPE NUMERIC(14,2) USING precio_unitario::double precision::numeric(14,2);
+    ALTER TABLE ventas           ALTER COLUMN total                TYPE NUMERIC(14,2) USING total::double precision::numeric(14,2);
+    ALTER TABLE cotizaciones     ALTER COLUMN total                TYPE NUMERIC(14,2) USING total::double precision::numeric(14,2);
+    ALTER TABLE kit_sales        ALTER COLUMN mano_obra            TYPE NUMERIC(14,2) USING mano_obra::double precision::numeric(14,2);
+    ALTER TABLE kit_sales        ALTER COLUMN valor_extra          TYPE NUMERIC(14,2) USING valor_extra::double precision::numeric(14,2);
+    ALTER TABLE kit_sales        ALTER COLUMN total                TYPE NUMERIC(14,2) USING total::double precision::numeric(14,2);
+    ALTER TABLE gastos           ALTER COLUMN monto                TYPE NUMERIC(14,2) USING monto::double precision::numeric(14,2);
+    ALTER TABLE cuentas_por_cobrar ALTER COLUMN monto_total        TYPE NUMERIC(14,2) USING monto_total::double precision::numeric(14,2);
+    ALTER TABLE abonos           ALTER COLUMN monto                TYPE NUMERIC(14,2) USING monto::double precision::numeric(14,2);
+    ALTER TABLE cierres_caja     ALTER COLUMN apertura             TYPE NUMERIC(14,2) USING apertura::double precision::numeric(14,2);
+    ALTER TABLE cierres_caja     ALTER COLUMN ventas               TYPE NUMERIC(14,2) USING ventas::double precision::numeric(14,2);
+    ALTER TABLE cierres_caja     ALTER COLUMN abonos               TYPE NUMERIC(14,2) USING abonos::double precision::numeric(14,2);
+    ALTER TABLE cierres_caja     ALTER COLUMN gastos               TYPE NUMERIC(14,2) USING gastos::double precision::numeric(14,2);
+    ALTER TABLE cierres_caja     ALTER COLUMN total_esperado       TYPE NUMERIC(14,2) USING total_esperado::double precision::numeric(14,2);
+    ALTER TABLE cierres_caja     ALTER COLUMN dinero_efectivo      TYPE NUMERIC(14,2) USING dinero_efectivo::double precision::numeric(14,2);
+    ALTER TABLE cierres_caja     ALTER COLUMN dinero_cuenta        TYPE NUMERIC(14,2) USING dinero_cuenta::double precision::numeric(14,2);
+    ALTER TABLE cierres_caja     ALTER COLUMN diferencia           TYPE NUMERIC(14,2) USING diferencia::double precision::numeric(14,2);
+  `);
+
+  // ── Rebranding: renombra la empresa de plataforma heredada del nombre anterior ──
+  await pool.query(
+    `UPDATE empresas SET nombre = 'AuraSistems — Plataforma' WHERE nombre = 'AM 18K — Plataforma'`
+  );
 
   // ── Migración de roles: 'admin' → 'gerente', 'vendedor' → 'empleado' ───────
   await pool.query(`ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_rol_check;`);

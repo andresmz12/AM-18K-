@@ -1,6 +1,6 @@
-# AM 18K — Inventario de Joyería
+# AuraSistems — Inventario de Joyería
 
-Aplicación web fullstack para gestionar el inventario de la joyería **AM 18K**.
+Aplicación web fullstack para gestionar el inventario de la joyería **AuraSistems**.
 
 ## Stack
 

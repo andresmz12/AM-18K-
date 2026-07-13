@@ -30,7 +30,7 @@ export default function AuthView() {
       <div className="auth-card">
         <div className="auth-card__badge" aria-hidden="true">◈</div>
         <div className="auth-card__brand">
-          <h1>AM 18K</h1>
+          <h1>AuraSistems</h1>
         </div>
         <p className="auth-card__subtitle">Sistema de inventario para joyerías</p>
 

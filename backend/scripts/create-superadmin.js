@@ -2,7 +2,7 @@
 // No existe endpoint público para esto — solo se crea desde este script,
 // corriéndolo directamente en el servidor/entorno con acceso a la base de datos.
 //
-// Uso: node backend/scripts/create-superadmin.js "Nombre" correo@am18k.com contraseña
+// Uso: node backend/scripts/create-superadmin.js "Nombre" correo@aurasistems.com contraseña
 const { pool, init } = require('../database');
 const { hashPassword } = require('../auth');
 
@@ -20,11 +20,11 @@ async function main() {
   await init();
 
   let { rows: [empresa] } = await pool.query(
-    `SELECT id FROM empresas WHERE nombre = 'AM 18K — Plataforma' LIMIT 1`
+    `SELECT id FROM empresas WHERE nombre = 'AuraSistems — Plataforma' LIMIT 1`
   );
   if (!empresa) {
     ({ rows: [empresa] } = await pool.query(
-      `INSERT INTO empresas (nombre) VALUES ('AM 18K — Plataforma') RETURNING id`
+      `INSERT INTO empresas (nombre) VALUES ('AuraSistems — Plataforma') RETURNING id`
     ));
   }
   const empresaId = empresa.id;

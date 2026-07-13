@@ -11,7 +11,7 @@ export default function Header({ view, setView, onAdd, onExport, user, onLogout,
       <div className="header__brand">
         <span className="header__logo" aria-hidden="true">◈</span>
         <div>
-          <h1 className="header__title">{platformMode ? 'AM 18K' : (user?.empresa_nombre || 'AM 18K')}</h1>
+          <h1 className="header__title">{platformMode ? 'AuraSistems' : (user?.empresa_nombre || 'AuraSistems')}</h1>
           <p className="header__subtitle">{platformMode ? 'Panel de plataforma' : 'Joyería & Accesorios'}</p>
         </div>
       </div>

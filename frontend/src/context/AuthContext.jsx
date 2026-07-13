@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 
 const AuthContext = createContext(null);
 
-const TOKEN_KEY = 'am18k_token';
+const TOKEN_KEY = 'aurasistems_token';
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));

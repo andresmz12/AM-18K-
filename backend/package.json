@@ -1,7 +1,7 @@
 {
-  "name": "am18k-backend",
+  "name": "aurasistems-backend",
   "version": "1.0.0",
-  "description": "AM 18K Jewelry Inventory - Backend",
+  "description": "AuraSistems Jewelry Inventory - Backend",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",

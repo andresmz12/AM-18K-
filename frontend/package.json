@@ -1,7 +1,7 @@
 {
-  "name": "am18k-frontend",
+  "name": "aurasistems-frontend",
   "version": "1.0.0",
-  "description": "AM 18K Jewelry Inventory - Frontend",
+  "description": "AuraSistems Jewelry Inventory - Frontend",
   "type": "module",
   "scripts": {
     "dev": "vite",

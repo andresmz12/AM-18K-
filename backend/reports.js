@@ -178,7 +178,7 @@ function enviarPdf(res, tipo, filas, empresaNombre) {
   const doc = new PDFDocument({ margin: 30, size: 'A4', layout: columnas.length > 6 ? 'landscape' : 'portrait' });
   doc.pipe(res);
 
-  doc.fontSize(16).fillColor('#0A0A0A').text(`AM 18K — ${titulo}`, { continued: false });
+  doc.fontSize(16).fillColor('#0A0A0A').text(`AuraSistems — ${titulo}`, { continued: false });
   doc.fontSize(10).fillColor('#666666').text(empresaNombre);
   doc.fontSize(9).fillColor('#9A9A9A').text(new Date().toLocaleString('es-CO'));
   doc.moveDown(1);
@@ -233,7 +233,7 @@ async function generarReporte(req, res, tipo) {
       REPORTES[tipo].obtener(pool, req.user.empresa_id, periodo),
       pool.query('SELECT nombre FROM empresas WHERE id = $1', [req.user.empresa_id])
     ]);
-    const empresaNombre = empresaR.rows[0]?.nombre || 'AM18K';
+    const empresaNombre = empresaR.rows[0]?.nombre || 'AuraSistems';
     if (formato === 'pdf') enviarPdf(res, tipo, filas, empresaNombre);
     else await enviarExcel(res, tipo, filas, empresaNombre);
   } catch (err) {

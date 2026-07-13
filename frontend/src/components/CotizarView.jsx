@@ -219,7 +219,7 @@ export default function CotizarView({ products, apiFetch }) {
         <div className="cotizar-doc">
           <div className="cotizar-doc__header print-only">
             <div className="cotizar-doc__brand">
-              <span className="cotizar-doc__logo">◈ AM 18K</span>
+              <span className="cotizar-doc__logo">◈ AuraSistems</span>
               <span className="cotizar-doc__sub">Joyería &amp; Accesorios</span>
             </div>
             <div className="cotizar-doc__meta">
@@ -276,7 +276,7 @@ export default function CotizarView({ products, apiFetch }) {
 
           {notas && <div className="cotizar-notas print-only"><strong>Notas:</strong> {notas}</div>}
           <div className="cotizar-doc__footer print-only">
-            <p>Gracias por su preferencia · AM 18K Joyería &amp; Accesorios</p>
+            <p>Gracias por su preferencia · AuraSistems Joyería &amp; Accesorios</p>
           </div>
         </div>
       )}
@@ -373,7 +373,7 @@ export default function CotizarView({ products, apiFetch }) {
         <div className="cotizar-print-saved print-only">
           <div className="cotizar-doc__header" style={{ display: 'flex' }}>
             <div className="cotizar-doc__brand">
-              <span className="cotizar-doc__logo">◈ AM 18K</span>
+              <span className="cotizar-doc__logo">◈ AuraSistems</span>
               <span className="cotizar-doc__sub">Joyería &amp; Accesorios</span>
             </div>
             <div className="cotizar-doc__meta">
@@ -414,7 +414,7 @@ export default function CotizarView({ products, apiFetch }) {
             <p style={{ marginTop: 14, fontSize: 12, color: '#444' }}><strong>Notas:</strong> {expandedCot.notas}</p>
           )}
           <div className="cotizar-doc__footer">
-            <p>Gracias por su preferencia · AM 18K Joyería &amp; Accesorios</p>
+            <p>Gracias por su preferencia · AuraSistems Joyería &amp; Accesorios</p>
           </div>
         </div>
       )}

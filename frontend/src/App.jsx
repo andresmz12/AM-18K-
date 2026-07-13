@@ -140,7 +140,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'inventario-am18k.csv';
+    a.download = 'inventario-aurasistems.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
