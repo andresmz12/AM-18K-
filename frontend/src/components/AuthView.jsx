@@ -8,9 +8,9 @@ const FEATURES = [
   'Reportes en Excel y PDF con un clic'
 ];
 
-export default function AuthView() {
+export default function AuthView({ initialMode = 'login', onBack }) {
   const { login, signup } = useAuth();
-  const [mode, setMode]       = useState('login'); // 'login' | 'signup'
+  const [mode, setMode]       = useState(initialMode); // 'login' | 'signup'
   const [empresa, setEmpresa] = useState('');
   const [nombre, setNombre]   = useState('');
   const [email, setEmail]     = useState('');
@@ -69,6 +69,12 @@ export default function AuthView() {
       {/* Panel del formulario */}
       <main className="auth-panel">
         <div className="auth-box">
+          {onBack && (
+            <button type="button" className="auth-box__back" onClick={onBack}>
+              ← Volver al inicio
+            </button>
+          )}
+
           <div className="auth-box__logo" aria-hidden="true">
             <span className="auth-box__logo-mark">◈</span> AuraSistems
           </div>

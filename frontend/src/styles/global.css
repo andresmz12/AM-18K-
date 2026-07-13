@@ -1477,6 +1477,20 @@ body {
   max-width: 400px;
 }
 
+.auth-box__back {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-600);
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 20px;
+  transition: color 0.15s;
+}
+.auth-box__back:hover { color: var(--gold-dark); }
+
 /* Logo compacto: solo aparece en móvil, cuando el panel de marca está oculto */
 .auth-box__logo {
   display: none;

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
+import LandingPage from './components/LandingPage';
 import AuthView from './components/AuthView';
 import Header from './components/Header';
 import Dashboard from './components/Dashboard';
@@ -18,6 +19,8 @@ import PlatformView from './components/PlatformView';
 export default function App() {
   const { user, loading: authLoading, apiFetch, logout } = useAuth();
 
+  const [showAuth, setShowAuth]         = useState(false);
+  const [authMode, setAuthMode]         = useState('login');
   const [products, setProducts]         = useState([]);
   const [dashboard, setDashboard]       = useState(null);
   const [statsCategoria, setStatsCat]   = useState([]);
@@ -150,7 +153,15 @@ export default function App() {
   }
 
   if (!user) {
-    return <AuthView />;
+    if (!showAuth) {
+      return (
+        <LandingPage
+          onLogin={() => { setAuthMode('login'); setShowAuth(true); }}
+          onSignup={() => { setAuthMode('signup'); setShowAuth(true); }}
+        />
+      );
+    }
+    return <AuthView initialMode={authMode} onBack={() => setShowAuth(false)} />;
   }
 
   if (user.rol === 'superadmin') {
