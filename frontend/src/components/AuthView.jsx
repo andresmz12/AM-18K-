@@ -46,7 +46,7 @@ export default function AuthView({ initialMode = 'login', onBack }) {
       {/* Panel de marca — solo visible en pantallas anchas */}
       <aside className="auth-brand">
         <div className="auth-brand__logo">
-          <span className="auth-brand__logo-mark" aria-hidden="true">◈</span>
+          <img className="auth-brand__logo-mark" src="/logo-icon-dark.png" alt="" aria-hidden="true" />
           <span className="auth-brand__logo-name">AuraSistems</span>
         </div>
 
@@ -76,7 +76,7 @@ export default function AuthView({ initialMode = 'login', onBack }) {
           )}
 
           <div className="auth-box__logo" aria-hidden="true">
-            <span className="auth-box__logo-mark">◈</span> AuraSistems
+            <img className="auth-box__logo-mark" src="/logo-icon-light.png" alt="" /> AuraSistems
           </div>
 
           <h1 className="auth-box__title">

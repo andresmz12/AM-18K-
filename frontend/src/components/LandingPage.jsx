@@ -136,7 +136,7 @@ export default function LandingPage({ onLogin, onSignup }) {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const basePrice = 79000;
+  const basePrice = 99000;
   const price = billing === 'annual' ? Math.round(basePrice * 0.8) : basePrice;
 
   return (
@@ -145,7 +145,7 @@ export default function LandingPage({ onLogin, onSignup }) {
       <header className="lp-nav">
         <div className="lp-nav__inner">
           <div className="lp-nav__brand">
-            <span className="lp-nav__mark" aria-hidden="true">◈</span>
+            <img className="lp-nav__mark" src="/logo-icon-light.png" alt="" aria-hidden="true" />
             <span>AuraSistems</span>
           </div>
 
@@ -326,7 +326,7 @@ export default function LandingPage({ onLogin, onSignup }) {
 
       <footer className="lp-footer">
         <div className="lp-footer__brand">
-          <span aria-hidden="true">◈</span> AuraSistems
+          <img className="lp-footer__mark" src="/logo-icon-light.png" alt="" aria-hidden="true" /> AuraSistems
         </div>
         <p>© {new Date().getFullYear()} AuraSistems · Sistema de gestión para joyerías</p>
       </footer>

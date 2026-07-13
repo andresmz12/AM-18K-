@@ -85,7 +85,7 @@
   font-size: 18px;
   letter-spacing: 0.02em;
 }
-.lp-nav__mark { color: var(--gold); font-size: 22px; }
+.lp-nav__mark { width: 26px; height: 26px; object-fit: contain; }
 
 .lp-nav__links {
   display: flex;
@@ -424,8 +424,16 @@
   color: var(--gray-400);
   font-size: 13px;
 }
-.lp-footer__brand { font-weight: 800; color: var(--black); margin-bottom: 8px; }
-.lp-footer__brand span { color: var(--gold); }
+.lp-footer__brand {
+  font-weight: 800;
+  color: var(--black);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.lp-footer__mark { width: 18px; height: 18px; object-fit: contain; }
 
 /* ── Responsive ──────────────────────────────────────────── */
 

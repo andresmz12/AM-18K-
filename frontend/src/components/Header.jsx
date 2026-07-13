@@ -9,7 +9,7 @@ export default function Header({ view, setView, onAdd, onExport, user, onLogout,
   return (
     <header className="header">
       <div className="header__brand">
-        <span className="header__logo" aria-hidden="true">◈</span>
+        <img className="header__logo" src="/logo-icon-dark.png" alt="" aria-hidden="true" />
         <div>
           <h1 className="header__title">{platformMode ? 'AuraSistems' : (user?.empresa_nombre || 'AuraSistems')}</h1>
           <p className="header__subtitle">{platformMode ? 'Panel de plataforma' : 'Joyería & Accesorios'}</p>
