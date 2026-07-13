@@ -179,7 +179,6 @@ function enviarPdf(res, tipo, filas, empresaNombre) {
   doc.pipe(res);
 
   doc.fontSize(16).fillColor('#0A0A0A').text(`AuraSistems — ${titulo}`, { continued: false });
-  doc.fontSize(10).fillColor('#666666').text(empresaNombre);
   doc.fontSize(9).fillColor('#9A9A9A').text(new Date().toLocaleString('es-CO'));
   doc.moveDown(1);
 

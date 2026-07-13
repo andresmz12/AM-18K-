@@ -70,30 +70,13 @@ body {
 .header__brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-width: 155px;
 }
 
 .header__logo {
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
   object-fit: contain;
   display: block;
-}
-
-.header__title {
-  color: var(--gold);
-  font-size: 19px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  line-height: 1.15;
-}
-
-.header__subtitle {
-  color: var(--gray-400);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .header__nav {
@@ -1246,22 +1229,21 @@ body {
 
   .cotizar-doc__brand {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .cotizar-doc__logo-mark {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
   }
 
   .cotizar-doc__logo {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 800;
     color: #B8960C;
     letter-spacing: 0.06em;
-  }
-
-  .cotizar-doc__sub {
-    font-size: 11px;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
   }
 
   .cotizar-doc__meta {
@@ -1302,7 +1284,6 @@ body {
 
 @media (max-width: 520px) {
   .cards-grid { grid-template-columns: 1fr; }
-  .header__brand .header__subtitle { display: none; }
   .btn--hide-mobile { display: none; }
   .ventas-toolbar { flex-direction: column; align-items: flex-start; gap: 12px; }
 
