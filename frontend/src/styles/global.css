@@ -271,12 +271,20 @@ body {
   font-weight: 600;
   margin-bottom: 4px;
 }
+/* min-width: 0 permite que el contenido se encoja dentro del flex
+   en vez de desbordarse fuera de la tarjeta */
+.card__content { flex: 1; min-width: 0; }
+
 .card__value {
   font-size: 20px;
   font-weight: 800;
   color: var(--black);
   letter-spacing: -0.02em;
+  overflow-wrap: anywhere; /* red de seguridad: antes de salirse, parte la línea */
 }
+/* Tamaños reducidos que asigna el Dashboard según el largo del valor */
+.card__value--sm { font-size: 16.5px; }
+.card__value--xs { font-size: 14px; }
 .card--positive .card__value { color: var(--gold-dark); }
 .card--warning .card__value  { color: var(--warning); }
 

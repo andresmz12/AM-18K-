@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ImageLightbox from './ImageLightbox';
 import { compressImage } from '../utils/image';
+import { cop } from '../utils/format';
 
 const CATEGORIAS = ['Oro 18k', 'Laminado', 'Bisutería', 'Accesorios', 'Otro'];
 
@@ -9,11 +10,6 @@ const blank = {
   peso_gramos: '', costo: '', porcentaje_ganancia: '', stock: '',
   stock_minimo: '1', proveedor: '', notas: '', imagen_url: ''
 };
-
-const cop = v =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', minimumFractionDigits: 0
-  }).format(v || 0);
 
 export default function ProductForm({ product, onSave, onClose }) {
   const [form, setForm]               = useState(blank);

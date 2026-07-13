@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { compressImage } from '../utils/image';
 import ImageLightbox from './ImageLightbox';
-
-const cop = v =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', minimumFractionDigits: 0
-  }).format(v || 0);
+import { cop } from '../utils/format';
 
 const PERIODOS = [
   { key: 'hoy',    label: 'Hoy' },

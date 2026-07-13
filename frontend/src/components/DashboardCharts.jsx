@@ -3,16 +3,7 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, Cell
 } from 'recharts';
-
-const cop = v =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', minimumFractionDigits: 0
-  }).format(v || 0);
-
-const copCompact = v =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', notation: 'compact', maximumFractionDigits: 1
-  }).format(v || 0);
+import { cop, copCompact } from '../utils/format';
 
 // Colores fijos por categoría — mismo orden que el resto de la app, validados para daltonismo.
 const COLOR_CATEGORIA = {

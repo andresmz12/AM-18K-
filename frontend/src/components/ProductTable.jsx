@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
 import ImageLightbox from './ImageLightbox';
+import { cop } from '../utils/format';
 
 const CATEGORIAS = ['Todas', 'Oro 18k', 'Laminado', 'Bisutería', 'Accesorios', 'Otro'];
-
-const cop = v =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', minimumFractionDigits: 0
-  }).format(v || 0);
 
 const catClass = cat => {
   const map = { 'Oro 18k': 'oro', 'Laminado': 'laminado', 'Bisutería': 'bisuteria', 'Accesorios': 'accesorios', 'Otro': 'otro' };

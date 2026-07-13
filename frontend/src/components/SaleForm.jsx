@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
-const cop = v =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', minimumFractionDigits: 0
-  }).format(v || 0);
+import { cop } from '../utils/format';
 
 export default function SaleForm({ products, onSave, onClose }) {
   const [modo, setModo]                 = useState('simple'); // 'simple' | 'kit'

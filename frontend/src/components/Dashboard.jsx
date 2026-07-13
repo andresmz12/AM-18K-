@@ -1,10 +1,22 @@
 import React from 'react';
 import DashboardCharts from './DashboardCharts';
+import { cop, copCompact } from '../utils/format';
 
-const cop = v =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', minimumFractionDigits: 0
-  }).format(v || 0);
+// Desde mil millones el valor exacto ya no cabe legible en la tarjeta:
+// se muestra abreviado ($ 4050 M, $ 1,3 B) y el exacto va en el tooltip.
+const copCard = v => (Math.abs(v || 0) >= 1e9 ? copCompact(v) : cop(v));
+
+const gramos = v =>
+  `${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 }).format(v || 0)} g`;
+
+// Reduce el tamaño de fuente cuando el valor es largo para que nunca
+// se salga de la tarjeta (ej. "$ 450.563.520").
+const valueClass = v => {
+  const len = String(v).length;
+  if (len > 12) return 'card__value card__value--xs';
+  if (len > 9)  return 'card__value card__value--sm';
+  return 'card__value';
+};
 
 export default function Dashboard({ stats, statsCategoria, loading, onViewInventory, isGerente, apiFetch }) {
   if (loading || !stats) {
@@ -17,13 +29,13 @@ export default function Dashboard({ stats, statsCategoria, loading, onViewInvent
 
   const cards = [
     { label: 'Total Productos',    value: stats.totalProductos,         icon: '◈', type: 'neutral'  },
-    ...(isGerente ? [{ label: 'Total Invertido', value: cop(stats.totalInvertido), icon: '↓', type: 'neutral' }] : []),
-    { label: 'Valor Inventario',   value: cop(stats.valorInventario),   icon: '◆', type: 'positive' },
-    ...(isGerente ? [{ label: 'Ganancia Potencial', value: cop(stats.gananciasPotencial), icon: '▲', type: 'positive' }] : []),
+    ...(isGerente ? [{ label: 'Total Invertido', value: copCard(stats.totalInvertido), title: cop(stats.totalInvertido), icon: '↓', type: 'neutral' }] : []),
+    { label: 'Valor Inventario',   value: copCard(stats.valorInventario), title: cop(stats.valorInventario), icon: '◆', type: 'positive' },
+    ...(isGerente ? [{ label: 'Ganancia Potencial', value: copCard(stats.gananciasPotencial), title: cop(stats.gananciasPotencial), icon: '▲', type: 'positive' }] : []),
     { label: 'Stock Bajo',         value: stats.productosStockBajo,     icon: '⚠', type: stats.productosStockBajo > 0 ? 'warning' : 'neutral', clickable: stats.productosStockBajo > 0 },
     { label: 'Ventas Hoy',         value: stats.ventasHoy,             icon: '↗', type: 'neutral'  },
-    { label: 'Ingresos Hoy',       value: cop(stats.ingresosHoy),      icon: '$', type: stats.ingresosHoy > 0 ? 'positive' : 'neutral' },
-    { label: 'Peso Oro',           value: `${(stats.pesoTotalOroGramos || 0).toFixed(1)} g`, icon: '⚖', type: 'neutral' },
+    { label: 'Ingresos Hoy',       value: copCard(stats.ingresosHoy),  title: cop(stats.ingresosHoy), icon: '$', type: stats.ingresosHoy > 0 ? 'positive' : 'neutral' },
+    { label: 'Peso Oro',           value: gramos(stats.pesoTotalOroGramos), icon: '⚖', type: 'neutral' },
   ];
 
   return (
@@ -43,7 +55,7 @@ export default function Dashboard({ stats, statsCategoria, loading, onViewInvent
             <div className="card__icon">{card.icon}</div>
             <div className="card__content">
               <p className="card__label">{card.label}</p>
-              <p className="card__value">{card.value}</p>
+              <p className={valueClass(card.value)} title={card.title}>{card.value}</p>
             </div>
           </div>
         ))}

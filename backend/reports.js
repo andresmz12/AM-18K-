@@ -2,7 +2,7 @@ const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 
 const cop = v => new Intl.NumberFormat('es-CO', {
-  style: 'currency', currency: 'COP', minimumFractionDigits: 0
+  style: 'currency', currency: 'COP', maximumFractionDigits: 0
 }).format(v || 0);
 
 function whereFecha(alias, periodo) {
