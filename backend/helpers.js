@@ -1,5 +1,19 @@
 // Helpers compartidos entre routers.
 
+// Condición SQL de fecha para los filtros de período ('hoy' | 'semana' | 'mes' | 'todo')
+// usados en ventas, kits, gastos y reportes. `alias` es el alias de tabla en el
+// query (ej. 'v' para "ventas v"); se omite si la columna no está calificada.
+function whereFecha(alias, periodo) {
+  const col = alias ? `${alias}.fecha` : 'fecha';
+  const map = {
+    hoy:    `${col}::date = CURRENT_DATE`,
+    semana: `${col} >= NOW() - INTERVAL '7 days'`,
+    mes:    `DATE_TRUNC('month', ${col}) = DATE_TRUNC('month', NOW())`,
+    todo:   'TRUE'
+  };
+  return map[periodo] || map.todo;
+}
+
 // Los errores internos se registran en el log pero nunca se envían al cliente
 const serverError = (res, err) => {
   console.error(err);
@@ -16,4 +30,4 @@ const stripCosts = (row, rol) => {
   return rest;
 };
 
-module.exports = { serverError, bizError, stripCosts };
+module.exports = { serverError, bizError, stripCosts, whereFecha };

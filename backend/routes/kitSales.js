@@ -1,7 +1,7 @@
 const express = require('express');
 const { pool } = require('../database');
 const V = require('../validate');
-const { serverError, bizError } = require('../helpers');
+const { serverError, bizError, whereFecha } = require('../helpers');
 
 const router = express.Router();
 
@@ -9,12 +9,7 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   const { periodo = 'hoy' } = req.query;
-  const filtros = {
-    hoy:    "fecha::date = CURRENT_DATE",
-    semana: "fecha >= NOW() - INTERVAL '7 days'",
-    mes:    "DATE_TRUNC('month', fecha) = DATE_TRUNC('month', NOW())"
-  };
-  const where = filtros[periodo] || filtros.hoy;
+  const where = whereFecha(null, periodo);
   try {
     const { rows } = await pool.query(
       `SELECT * FROM kit_sales WHERE empresa_id = $1 AND ${where} ORDER BY fecha DESC`,

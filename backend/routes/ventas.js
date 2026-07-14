@@ -1,18 +1,13 @@
 const express = require('express');
 const { pool } = require('../database');
 const V = require('../validate');
-const { serverError, bizError } = require('../helpers');
+const { serverError, bizError, whereFecha } = require('../helpers');
 
 const router = express.Router();
 
 router.get('/', async (req, res) => {
   const { periodo = 'hoy' } = req.query;
-  const filtros = {
-    hoy:    "v.fecha::date = CURRENT_DATE",
-    semana: "v.fecha >= NOW() - INTERVAL '7 days'",
-    mes:    "DATE_TRUNC('month', v.fecha) = DATE_TRUNC('month', NOW())"
-  };
-  const where = filtros[periodo] || filtros.hoy;
+  const where = whereFecha('v', periodo);
   try {
     const { rows } = await pool.query(
       `SELECT v.*, p.nombre, p.codigo FROM ventas v

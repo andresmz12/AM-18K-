@@ -1,20 +1,10 @@
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
+const { whereFecha } = require('./helpers');
 
 const cop = v => new Intl.NumberFormat('es-CO', {
   style: 'currency', currency: 'COP', maximumFractionDigits: 0
 }).format(v || 0);
-
-function whereFecha(alias, periodo) {
-  const col = alias ? `${alias}.fecha` : 'fecha';
-  const map = {
-    hoy:    `${col}::date = CURRENT_DATE`,
-    semana: `${col} >= NOW() - INTERVAL '7 days'`,
-    mes:    `DATE_TRUNC('month', ${col}) = DATE_TRUNC('month', NOW())`,
-    todo:   'TRUE'
-  };
-  return map[periodo] || map.todo;
-}
 
 // ─── Consultas de datos ────────────────────────────────────────────────────────
 

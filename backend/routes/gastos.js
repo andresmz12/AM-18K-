@@ -2,7 +2,7 @@ const express = require('express');
 const { pool } = require('../database');
 const { requireGerente } = require('../auth');
 const V = require('../validate');
-const { serverError } = require('../helpers');
+const { serverError, whereFecha } = require('../helpers');
 
 const router = express.Router();
 
@@ -10,12 +10,7 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   const { periodo = 'hoy' } = req.query;
-  const filtros = {
-    hoy:    "fecha::date = CURRENT_DATE",
-    semana: "fecha >= NOW() - INTERVAL '7 days'",
-    mes:    "DATE_TRUNC('month', fecha) = DATE_TRUNC('month', NOW())"
-  };
-  const where = filtros[periodo] || filtros.hoy;
+  const where = whereFecha(null, periodo);
   try {
     const { rows } = await pool.query(
       `SELECT id, empresa_id, concepto, monto, recurrente, imagen_url, notas, fecha
