@@ -70,6 +70,18 @@ export default function CierreCajaView({ apiFetch, onNavigate, isGerente }) {
     if (res.ok) load();
   };
 
+  const handleDownloadPdf = async id => {
+    const res = await apiFetch(`/api/cierres/${id}/pdf`);
+    if (!res.ok) { setError('Error al descargar el PDF'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cierre-caja-${id}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) return <div className="loading">Cargando caja...</div>;
 
   const yaCerrada = !!resumen?.cierre;
@@ -82,7 +94,12 @@ export default function CierreCajaView({ apiFetch, onNavigate, isGerente }) {
 
       {yaCerrada ? (
         <div className="caja-resumen-card">
-          <p className="sale-section-label">Caja ya cerrada hoy — por {resumen.cierre.usuario_nombre}</p>
+          <div className="inventory__header" style={{ marginBottom: 0 }}>
+            <p className="sale-section-label">Caja ya cerrada hoy — por {resumen.cierre.usuario_nombre}</p>
+            <button className="btn btn--outline" onClick={() => handleDownloadPdf(resumen.cierre.id)}>
+              ↓ Descargar PDF
+            </button>
+          </div>
           <div className="caja-resumen-grid">
             <div>
               <span className="text-muted">Apertura</span>
@@ -208,6 +225,7 @@ export default function CierreCajaView({ apiFetch, onNavigate, isGerente }) {
                   <th className="td-num">Esperado</th>
                   <th className="td-num">Efectivo+Cuenta</th>
                   <th className="td-num">Diferencia</th>
+                  <th></th>
                   {isGerente && <th></th>}
                 </tr>
               </thead>
@@ -223,6 +241,9 @@ export default function CierreCajaView({ apiFetch, onNavigate, isGerente }) {
                     <td className="td-num">{cop(c.dinero_efectivo + c.dinero_cuenta)}</td>
                     <td className={`td-num ${c.diferencia === 0 ? '' : c.diferencia > 0 ? 'caja-diff--positiva' : 'caja-diff--negativa'}`}>
                       {cop(c.diferencia)}
+                    </td>
+                    <td>
+                      <button className="btn-icon" onClick={() => handleDownloadPdf(c.id)} title="Descargar PDF">↓</button>
                     </td>
                     {isGerente && (
                       <td>

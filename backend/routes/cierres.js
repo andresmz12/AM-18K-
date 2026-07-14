@@ -1,10 +1,24 @@
 const express = require('express');
+const PDFDocument = require('pdfkit');
 const { pool } = require('../database');
 const { requireGerente } = require('../auth');
 const V = require('../validate');
 const { serverError } = require('../helpers');
 
 const router = express.Router();
+
+const cop = v => new Intl.NumberFormat('es-CO', {
+  style: 'currency', currency: 'COP', maximumFractionDigits: 0
+}).format(v || 0);
+
+// El valor llega como DATE (medianoche UTC) — se formatea por componentes,
+// no con un Date normal, para no correr el mismo riesgo de desfase de día
+// que ya tuvimos en el frontend.
+const fmtFechaCierre = fecha => {
+  const iso = fecha instanceof Date ? fecha.toISOString() : String(fecha);
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
+};
 
 // ─── Cierre de caja ────────────────────────────────────────────────────────────
 
@@ -84,6 +98,68 @@ router.post('/', async (req, res) => {
     if (err.code !== '23505') console.error(err);
     const msg = err.code === '23505' ? 'Ya existe un cierre de caja para hoy' : 'Error al procesar la solicitud';
     res.status(400).json({ error: msg });
+  }
+});
+
+// Descarga el resumen de un cierre de caja en PDF
+router.get('/:id/pdf', async (req, res) => {
+  try {
+    const { rows: [c] } = await pool.query(
+      `SELECT c.*, u.nombre AS usuario_nombre, e.nombre AS empresa_nombre
+       FROM cierres_caja c
+       JOIN usuarios u ON u.id = c.usuario_id
+       JOIN empresas e ON e.id = c.empresa_id
+       WHERE c.id = $1 AND c.empresa_id = $2`,
+      [req.params.id, req.user.empresa_id]
+    );
+    if (!c) return res.status(404).json({ error: 'Cierre no encontrado' });
+
+    const fechaStr = fmtFechaCierre(c.fecha);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="cierre-caja-${fechaStr.replace(/\//g, '-')}.pdf"`);
+
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+    doc.pipe(res);
+
+    doc.fontSize(16).fillColor('#0A0A0A').text('AuraSistems — Cierre de Caja', { continued: false });
+    doc.fontSize(10).fillColor('#666666').text(c.empresa_nombre);
+    doc.fontSize(9).fillColor('#9A9A9A').text(`Fecha: ${fechaStr}  ·  Cerrado por: ${c.usuario_nombre}`);
+    doc.moveDown(1.5);
+
+    const fila = (label, valor, { destacado = false, negativo = false } = {}) => {
+      const y = doc.y;
+      doc.fontSize(11).fillColor('#333333').text(label, 40, y, { continued: false });
+      doc.fontSize(destacado ? 13 : 11)
+        .fillColor(negativo ? '#C62828' : destacado ? '#0A0A0A' : '#333333')
+        .text(valor, 40, y, { align: 'right', width: 515 });
+      doc.moveDown(destacado ? 0.9 : 0.6);
+    };
+
+    fila('Apertura en efectivo', cop(c.apertura_efectivo));
+    fila('Apertura en cuenta', cop(c.apertura_cuenta));
+    fila('Apertura total', cop(c.apertura));
+    doc.moveDown(0.3);
+    fila('Ventas del día', cop(c.ventas));
+    fila('Abonos recibidos', cop(c.abonos));
+    fila('Gastos del día', `-${cop(c.gastos)}`);
+    doc.moveDown(0.3);
+    fila('Total esperado en caja', cop(c.total_esperado), { destacado: true });
+    doc.moveDown(0.3);
+    fila('Efectivo contado', cop(c.dinero_efectivo));
+    fila('En cuenta', cop(c.dinero_cuenta));
+    fila('Total contado', cop(c.dinero_efectivo + c.dinero_cuenta));
+    doc.moveDown(0.3);
+    fila('Diferencia', cop(c.diferencia), { destacado: true, negativo: c.diferencia < 0 });
+
+    if (c.notas) {
+      doc.moveDown(1);
+      doc.fontSize(10).fillColor('#666666').text('Notas:', 40);
+      doc.fontSize(10).fillColor('#333333').text(c.notas, 40);
+    }
+
+    doc.end();
+  } catch (err) {
+    serverError(res, err);
   }
 });
 
