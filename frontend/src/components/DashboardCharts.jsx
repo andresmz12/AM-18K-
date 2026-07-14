@@ -3,7 +3,7 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, Cell
 } from 'recharts';
-import { cop, copCompact } from '../utils/format';
+import { cop, copCompact, parseFechaSolo } from '../utils/format';
 
 // Colores fijos por categoría — mismo orden que el resto de la app, validados para daltonismo.
 const COLOR_CATEGORIA = {
@@ -18,10 +18,7 @@ const COLOR_CATEGORIA = {
 };
 const COLOR_FALLBACK = '#8A8A8A';
 
-const fmtDiaCorto = str => {
-  const d = new Date(str);
-  return d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit' });
-};
+const fmtDiaCorto = str => parseFechaSolo(str).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit' });
 
 function TooltipVentas({ active, payload, label }) {
   if (!active || !payload?.length) return null;

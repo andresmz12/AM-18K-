@@ -6,9 +6,15 @@ const { Pool, types } = require('pg');
 // resto del código pueda seguir haciendo aritmética directa sobre las columnas.
 types.setTypeParser(types.builtins.NUMERIC, val => (val === null ? null : parseFloat(val)));
 
+// Sin esto, Postgres calcula "hoy" en UTC — una joyería en Colombia (UTC-5)
+// vería sus ventas de la noche contadas para el día siguiente, y los cierres
+// de caja quedarían con la fecha equivocada. Se fija por parámetro de conexión
+// (no con un SET posterior) para que aplique desde la primera consulta, sin
+// condición de carrera.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  options: '-c timezone=America/Bogota'
 });
 
 async function init() {

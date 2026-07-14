@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { cop } from '../utils/format';
+import { cop, parseFechaSolo } from '../utils/format';
 
-const fmtFecha = str => new Date(str).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+const fmtFecha = str => parseFechaSolo(str).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 
 export default function CierreCajaView({ apiFetch, onNavigate, isGerente }) {
   const [resumen, setResumen]   = useState(null);
