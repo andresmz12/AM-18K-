@@ -2,10 +2,17 @@ import React, { useState } from 'react';
 import ImageLightbox from './ImageLightbox';
 import { cop } from '../utils/format';
 
-const CATEGORIAS = ['Todas', 'Oro 18k', 'Laminado', 'Bisutería', 'Accesorios', 'Otro'];
+const CATEGORIAS = [
+  'Todas', 'Oro 18k', 'Plata 925', 'Laminado', 'Piedra natural', 'Piedra preciosa',
+  'Bisutería', 'Accesorios', 'Otro'
+];
 
 const catClass = cat => {
-  const map = { 'Oro 18k': 'oro', 'Laminado': 'laminado', 'Bisutería': 'bisuteria', 'Accesorios': 'accesorios', 'Otro': 'otro' };
+  const map = {
+    'Oro 18k': 'oro', 'Plata 925': 'plata', 'Laminado': 'laminado',
+    'Piedra natural': 'piedra-natural', 'Piedra preciosa': 'piedra-preciosa',
+    'Bisutería': 'bisuteria', 'Accesorios': 'accesorios', 'Otro': 'otro'
+  };
   return `categoria-badge cat--${map[cat] || 'otro'}`;
 };
 

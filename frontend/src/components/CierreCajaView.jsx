@@ -8,7 +8,8 @@ export default function CierreCajaView({ apiFetch, onNavigate }) {
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading]   = useState(true);
 
-  const [apertura, setApertura]             = useState('');
+  const [aperturaEfectivo, setAperturaEfectivo] = useState('');
+  const [aperturaCuenta, setAperturaCuenta]     = useState('');
   const [dineroEfectivo, setDineroEfectivo] = useState('');
   const [dineroCuenta, setDineroCuenta]     = useState('');
   const [notas, setNotas]               = useState('');
@@ -28,7 +29,9 @@ export default function CierreCajaView({ apiFetch, onNavigate }) {
 
   useEffect(load, []);
 
-  const aperturaNum = parseFloat(apertura) || 0;
+  const aperturaEfectivoNum = parseFloat(aperturaEfectivo) || 0;
+  const aperturaCuentaNum   = parseFloat(aperturaCuenta) || 0;
+  const aperturaNum = aperturaEfectivoNum + aperturaCuentaNum;
   const efectivoNum = parseFloat(dineroEfectivo) || 0;
   const cuentaNum   = parseFloat(dineroCuenta) || 0;
   const ventas      = resumen?.ventas || 0;
@@ -46,7 +49,7 @@ export default function CierreCajaView({ apiFetch, onNavigate }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          apertura: aperturaNum,
+          apertura_efectivo: aperturaEfectivoNum, apertura_cuenta: aperturaCuentaNum,
           dinero_efectivo: efectivoNum, dinero_cuenta: cuentaNum,
           notas: notas || null
         })
@@ -75,7 +78,13 @@ export default function CierreCajaView({ apiFetch, onNavigate }) {
         <div className="caja-resumen-card">
           <p className="sale-section-label">Caja ya cerrada hoy — por {resumen.cierre.usuario_nombre}</p>
           <div className="caja-resumen-grid">
-            <div><span className="text-muted">Apertura</span><strong>{cop(resumen.cierre.apertura)}</strong></div>
+            <div>
+              <span className="text-muted">Apertura</span>
+              <strong>{cop(resumen.cierre.apertura)}</strong>
+              <span className="text-muted" style={{ display: 'block', fontSize: 12 }}>
+                {cop(resumen.cierre.apertura_efectivo)} efectivo · {cop(resumen.cierre.apertura_cuenta)} cuenta
+              </span>
+            </div>
             <div><span className="text-muted">Ventas + abonos</span><strong>{cop(resumen.cierre.ventas + resumen.cierre.abonos)}</strong></div>
             <div><span className="text-muted">Gastos</span><strong>{cop(resumen.cierre.gastos)}</strong></div>
             <div><span className="text-muted">Total esperado</span><strong>{cop(resumen.cierre.total_esperado)}</strong></div>
@@ -94,10 +103,17 @@ export default function CierreCajaView({ apiFetch, onNavigate }) {
           <div className="caja-grid">
             <div className="sale-add-section">
               <p className="sale-section-label">Dinero de apertura del día</p>
-              <div className="form-group">
-                <label>Apertura (COP)</label>
-                <input type="number" min="0" step="0.01" value={apertura} onChange={e => setApertura(e.target.value)} placeholder="0" />
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Efectivo y monedas (COP)</label>
+                  <input type="number" min="0" step="0.01" value={aperturaEfectivo} onChange={e => setAperturaEfectivo(e.target.value)} placeholder="0" />
+                </div>
+                <div className="form-group">
+                  <label>En cuenta (COP)</label>
+                  <input type="number" min="0" step="0.01" value={aperturaCuenta} onChange={e => setAperturaCuenta(e.target.value)} placeholder="0" />
+                </div>
               </div>
+              <p className="form-hint">Total apertura: <strong>{cop(aperturaNum)}</strong></p>
             </div>
 
             <div className="sale-add-section">

@@ -3,7 +3,10 @@ import ImageLightbox from './ImageLightbox';
 import { compressImage } from '../utils/image';
 import { cop } from '../utils/format';
 
-const CATEGORIAS = ['Oro 18k', 'Laminado', 'Bisutería', 'Accesorios', 'Otro'];
+const CATEGORIAS = [
+  'Oro 18k', 'Plata 925', 'Laminado', 'Piedra natural', 'Piedra preciosa',
+  'Bisutería', 'Accesorios', 'Otro'
+];
 
 const blank = {
   nombre: '', codigo: '', categoria: 'Oro 18k', descripcion: '',

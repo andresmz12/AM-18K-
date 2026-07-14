@@ -113,7 +113,7 @@ export default function VentasView({ onRegister, apiFetch }) {
                 <th>Código</th>
                 <th className="td-num">Cantidad</th>
                 <th className="td-num">Total</th>
-                <th>Notas</th>
+                <th>Pago</th>
               </tr>
             </thead>
             <tbody>
@@ -131,7 +131,14 @@ export default function VentasView({ onRegister, apiFetch }) {
                   </td>
                   <td className="td-num">{item.displayQuantity}</td>
                   <td className="td-num"><strong>{cop(item.displayTotal)}</strong></td>
-                  <td>{item.notas ? item.notas : item.cliente ? `Cliente: ${item.cliente}` : <span className="text-muted">—</span>}</td>
+                  <td>
+                    <span className={`badge-pago badge-pago--${item.metodo_pago === 'transferencia' ? 'transferencia' : 'efectivo'}`}>
+                      {item.metodo_pago === 'transferencia' ? '🏦 Transferencia' : '💵 Efectivo'}
+                    </span>
+                    {item.cliente && (
+                      <div className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>Cliente: {item.cliente}</div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

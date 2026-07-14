@@ -54,25 +54,29 @@ router.get('/hoy', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const apertura        = V.num(req.body.apertura);
-  const dinero_efectivo = V.num(req.body.dinero_efectivo);
-  const dinero_cuenta   = V.num(req.body.dinero_cuenta);
-  const notas           = V.optStr(req.body.notas, 2000);
+  const apertura_efectivo = V.num(req.body.apertura_efectivo);
+  const apertura_cuenta   = V.num(req.body.apertura_cuenta);
+  const dinero_efectivo   = V.num(req.body.dinero_efectivo);
+  const dinero_cuenta     = V.num(req.body.dinero_cuenta);
+  const notas             = V.optStr(req.body.notas, 2000);
   const empresaId = req.user.empresa_id;
-  if (apertura === null || dinero_efectivo === null || dinero_cuenta === null)
-    return res.status(400).json({ error: 'Apertura, efectivo y cuenta deben ser números positivos' });
+  if (apertura_efectivo === null || apertura_cuenta === null || dinero_efectivo === null || dinero_cuenta === null)
+    return res.status(400).json({ error: 'Apertura (efectivo y cuenta) y cierre (efectivo y cuenta) deben ser números positivos' });
   if (notas === undefined) return res.status(400).json({ error: 'Texto demasiado largo' });
   try {
     const { ventas, gastos, abonos } = await resumenDelDia(empresaId);
+    const apertura = apertura_efectivo + apertura_cuenta;
     const total_esperado = apertura + ventas + abonos - gastos;
     const diferencia = (dinero_efectivo + dinero_cuenta) - total_esperado;
 
     const { rows: [cierre] } = await pool.query(
       `INSERT INTO cierres_caja
-        (empresa_id, usuario_id, apertura, ventas, abonos, gastos, total_esperado, dinero_efectivo, dinero_cuenta, diferencia, notas)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        (empresa_id, usuario_id, apertura, apertura_efectivo, apertura_cuenta,
+         ventas, abonos, gastos, total_esperado, dinero_efectivo, dinero_cuenta, diferencia, notas)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
-      [empresaId, req.user.id, apertura, ventas, abonos, gastos, total_esperado, dinero_efectivo, dinero_cuenta, diferencia, notas]
+      [empresaId, req.user.id, apertura, apertura_efectivo, apertura_cuenta,
+       ventas, abonos, gastos, total_esperado, dinero_efectivo, dinero_cuenta, diferencia, notas]
     );
     res.status(201).json(cierre);
   } catch (err) {

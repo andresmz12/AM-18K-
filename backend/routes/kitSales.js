@@ -25,19 +25,21 @@ router.get('/', async (req, res) => {
   }
 });
 
+const METODOS_PAGO = ['efectivo', 'transferencia'];
+
 router.post('/', async (req, res) => {
   const nombre_kit = V.str(req.body.nombre_kit, 200);
   const { componentes } = req.body;
   const mano_obra   = V.num(req.body.mano_obra ?? 0);
   const valor_extra = V.num(req.body.valor_extra ?? 0);
   const cliente     = V.optStr(req.body.cliente, 200);
-  const notas       = V.optStr(req.body.notas, 2000);
+  const metodo_pago = METODOS_PAGO.includes(req.body.metodo_pago) ? req.body.metodo_pago : 'efectivo';
   const empresaId = req.user.empresa_id;
 
   if (!nombre_kit) return res.status(400).json({ error: 'Nombre del kit requerido' });
   if (mano_obra === null || valor_extra === null)
     return res.status(400).json({ error: 'Mano de obra y valor extra deben ser números positivos' });
-  if (cliente === undefined || notas === undefined)
+  if (cliente === undefined)
     return res.status(400).json({ error: 'Texto demasiado largo' });
   if (!Array.isArray(componentes) || componentes.length === 0 || componentes.length > 200)
     return res.status(400).json({ error: 'Se requiere entre 1 y 200 componentes' });
@@ -75,9 +77,9 @@ router.post('/', async (req, res) => {
 
     // Guardar la venta del kit
     const { rows: [kitSale] } = await client.query(
-      `INSERT INTO kit_sales (empresa_id, nombre_kit, componentes, mano_obra, valor_extra, total, cliente, notas, usuario_id)
+      `INSERT INTO kit_sales (empresa_id, nombre_kit, componentes, mano_obra, valor_extra, total, cliente, metodo_pago, usuario_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [empresaId, nombre_kit, JSON.stringify(componentes), mano_obra, valor_extra, total, cliente, notas, req.user.id]
+      [empresaId, nombre_kit, JSON.stringify(componentes), mano_obra, valor_extra, total, cliente, metodo_pago, req.user.id]
     );
 
     await client.query('COMMIT');

@@ -7,11 +7,14 @@ import { cop, copCompact } from '../utils/format';
 
 // Colores fijos por categoría — mismo orden que el resto de la app, validados para daltonismo.
 const COLOR_CATEGORIA = {
-  'Oro 18k':    '#B8960C',
-  'Laminado':   '#1565C0',
-  'Bisutería':  '#8E24AA',
-  'Accesorios': '#2E7D32',
-  'Otro':       '#B85C38'
+  'Oro 18k':         '#B8960C',
+  'Plata 925':       '#78909C',
+  'Laminado':        '#1565C0',
+  'Piedra natural':  '#00897B',
+  'Piedra preciosa': '#C2185B',
+  'Bisutería':       '#8E24AA',
+  'Accesorios':      '#2E7D32',
+  'Otro':            '#B85C38'
 };
 const COLOR_FALLBACK = '#8A8A8A';
 

@@ -27,8 +27,11 @@ router.get('/', async (req, res) => {
 
 // ─── Venta múltiple (carrito) ─────────────────────────────────────────────────
 
+const METODOS_PAGO = ['efectivo', 'transferencia'];
+
 router.post('/bulk', async (req, res) => {
-  const { items, notas } = req.body;
+  const { items } = req.body;
+  const metodo_pago = METODOS_PAGO.includes(req.body.metodo_pago) ? req.body.metodo_pago : 'efectivo';
   if (!Array.isArray(items) || items.length === 0 || items.length > 200)
     return res.status(400).json({ error: 'Se requiere entre 1 y 200 productos' });
   for (const item of items) {
@@ -52,9 +55,9 @@ router.post('/bulk', async (req, res) => {
       if (p.stock < cantidad) throw bizError(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
       const total = cantidad * precio_unitario;
       const { rows: [venta] } = await client.query(
-        `INSERT INTO ventas (empresa_id, producto_id, cantidad, precio_unitario, total, notas, usuario_id)
+        `INSERT INTO ventas (empresa_id, producto_id, cantidad, precio_unitario, total, metodo_pago, usuario_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-        [empresaId, producto_id, cantidad, precio_unitario, total, item.notas || notas || null, req.user.id]
+        [empresaId, producto_id, cantidad, precio_unitario, total, metodo_pago, req.user.id]
       );
       await client.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [cantidad, producto_id]);
       const { rows: [result] } = await client.query(

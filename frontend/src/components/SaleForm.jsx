@@ -7,9 +7,10 @@ export default function SaleForm({ products, onSave, onClose }) {
   // Modo simple
   const [cart, setCart]                 = useState([]);
   const [productoId, setProductoId]     = useState('');
+  const [busqueda, setBusqueda]         = useState('');
   const [cantidad, setCantidad]         = useState('1');
   const [precio, setPrecio]             = useState('');
-  const [notasGlobal, setNotasGlobal]   = useState('');
+  const [metodoPago, setMetodoPago]     = useState('efectivo');
 
   // Modo kit
   const [nombreKit, setNombreKit]       = useState('');
@@ -18,7 +19,9 @@ export default function SaleForm({ products, onSave, onClose }) {
   const [valorExtra, setValorExtra]     = useState('');
   const [cliente, setCliente]           = useState('');
   const [compProductoId, setCompProductoId] = useState('');
+  const [compBusqueda, setCompBusqueda] = useState('');
   const [compCantidad, setCompCantidad] = useState('1');
+  const [metodoPagoKit, setMetodoPagoKit] = useState('efectivo');
 
   const [saving, setSaving]             = useState(false);
 
@@ -37,6 +40,24 @@ export default function SaleForm({ products, onSave, onClose }) {
   const precioNum       = parseFloat(precio) || 0;
   const stockOk         = !producto || cantidadNum <= stockDisponible;
 
+  const busquedaNorm = busqueda.trim().toLowerCase();
+  const productosFiltrados = busquedaNorm
+    ? products.filter(p =>
+        p.nombre.toLowerCase().includes(busquedaNorm) ||
+        p.codigo.toLowerCase().includes(busquedaNorm) ||
+        (p.categoria || '').toLowerCase().includes(busquedaNorm)
+      )
+    : products;
+
+  const compBusquedaNorm = compBusqueda.trim().toLowerCase();
+  const componentesFiltrados = compBusquedaNorm
+    ? products.filter(p =>
+        p.nombre.toLowerCase().includes(compBusquedaNorm) ||
+        p.codigo.toLowerCase().includes(compBusquedaNorm) ||
+        (p.categoria || '').toLowerCase().includes(compBusquedaNorm)
+      )
+    : products;
+
   const addToCart = () => {
     if (!producto || !cantidadNum || !precioNum || !stockOk) return;
     setCart(prev => [
@@ -53,6 +74,7 @@ export default function SaleForm({ products, onSave, onClose }) {
     setProductoId('');
     setCantidad('1');
     setPrecio('');
+    setBusqueda('');
   };
 
   const removeFromCart = idx => setCart(prev => prev.filter((_, i) => i !== idx));
@@ -82,6 +104,7 @@ export default function SaleForm({ products, onSave, onClose }) {
     ]);
     setCompProductoId('');
     setCompCantidad('1');
+    setCompBusqueda('');
   };
 
   const removeComponente = idx => setComponentes(prev => prev.filter((_, i) => i !== idx));
@@ -102,7 +125,7 @@ export default function SaleForm({ products, onSave, onClose }) {
         items: cart.map(({ producto_id, cantidad, precio_unitario }) => ({
           producto_id, cantidad, precio_unitario
         })),
-        notas: notasGlobal
+        metodo_pago: metodoPago
       });
     } else {
       if (!nombreKit || componentes.length === 0 || totalKit <= 0) return;
@@ -113,7 +136,7 @@ export default function SaleForm({ products, onSave, onClose }) {
         mano_obra: manoObraNum,
         valor_extra: valorExtraNum,
         cliente: cliente || null,
-        notas: notasGlobal || null
+        metodo_pago: metodoPagoKit
       });
     }
 
@@ -157,9 +180,24 @@ export default function SaleForm({ products, onSave, onClose }) {
                 <div className="form-grid">
                   <div className="form-group form-group--full">
                     <label>Producto</label>
-                    <select value={productoId} onChange={e => setProductoId(e.target.value)}>
-                      <option value="">— Seleccionar producto —</option>
-                      {products.map(p => {
+                    <input
+                      type="text"
+                      value={busqueda}
+                      onChange={e => setBusqueda(e.target.value)}
+                      placeholder="Buscar por nombre, código o categoría..."
+                      style={{ marginBottom: 8 }}
+                    />
+                    <select
+                      value={productoId}
+                      onChange={e => setProductoId(e.target.value)}
+                      size={busquedaNorm ? Math.min(productosFiltrados.length + 1, 8) : undefined}
+                    >
+                      <option value="">
+                        {busquedaNorm
+                          ? `— ${productosFiltrados.length} resultado${productosFiltrados.length !== 1 ? 's' : ''} —`
+                          : '— Seleccionar producto —'}
+                      </option>
+                      {productosFiltrados.map(p => {
                         const usado = cart.filter(i => i.producto_id === p.id).reduce((s, i) => s + i.cantidad, 0);
                         const disp  = p.stock - usado;
                         return (
@@ -245,15 +283,25 @@ export default function SaleForm({ products, onSave, onClose }) {
                 </div>
               )}
 
-              {/* Notas */}
+              {/* Forma de pago */}
               <div className="form-group">
-                <label>Notas</label>
-                <textarea
-                  value={notasGlobal}
-                  onChange={e => setNotasGlobal(e.target.value)}
-                  rows={2}
-                  placeholder="Cliente, forma de pago, etc."
-                />
+                <label>Forma de pago</label>
+                <div className="payment-toggle">
+                  <button
+                    type="button"
+                    className={`payment-toggle__btn ${metodoPago === 'efectivo' ? 'payment-toggle__btn--active' : ''}`}
+                    onClick={() => setMetodoPago('efectivo')}
+                  >
+                    💵 Efectivo
+                  </button>
+                  <button
+                    type="button"
+                    className={`payment-toggle__btn ${metodoPago === 'transferencia' ? 'payment-toggle__btn--active' : ''}`}
+                    onClick={() => setMetodoPago('transferencia')}
+                  >
+                    🏦 Transferencia
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -280,9 +328,24 @@ export default function SaleForm({ products, onSave, onClose }) {
                 <div className="form-grid">
                   <div className="form-group form-group--full">
                     <label>Componente (balines, dijes, herrajes, etc.)</label>
-                    <select value={compProductoId} onChange={e => setCompProductoId(e.target.value)}>
-                      <option value="">— Seleccionar componente —</option>
-                      {products.map(p => {
+                    <input
+                      type="text"
+                      value={compBusqueda}
+                      onChange={e => setCompBusqueda(e.target.value)}
+                      placeholder="Buscar por nombre, código o categoría..."
+                      style={{ marginBottom: 8 }}
+                    />
+                    <select
+                      value={compProductoId}
+                      onChange={e => setCompProductoId(e.target.value)}
+                      size={compBusquedaNorm ? Math.min(componentesFiltrados.length + 1, 8) : undefined}
+                    >
+                      <option value="">
+                        {compBusquedaNorm
+                          ? `— ${componentesFiltrados.length} resultado${componentesFiltrados.length !== 1 ? 's' : ''} —`
+                          : '— Seleccionar componente —'}
+                      </option>
+                      {componentesFiltrados.map(p => {
                         const usado = componentes.filter(c => c.producto_id === p.id).reduce((s, c) => s + c.cantidad, 0);
                         const disp  = p.stock - usado;
                         return (
@@ -398,15 +461,25 @@ export default function SaleForm({ products, onSave, onClose }) {
                 />
               </div>
 
-              {/* Notas */}
+              {/* Forma de pago */}
               <div className="form-group">
-                <label>Notas (opcional)</label>
-                <textarea
-                  value={notasGlobal}
-                  onChange={e => setNotasGlobal(e.target.value)}
-                  rows={2}
-                  placeholder="Observaciones, forma de pago, etc."
-                />
+                <label>Forma de pago</label>
+                <div className="payment-toggle">
+                  <button
+                    type="button"
+                    className={`payment-toggle__btn ${metodoPagoKit === 'efectivo' ? 'payment-toggle__btn--active' : ''}`}
+                    onClick={() => setMetodoPagoKit('efectivo')}
+                  >
+                    💵 Efectivo
+                  </button>
+                  <button
+                    type="button"
+                    className={`payment-toggle__btn ${metodoPagoKit === 'transferencia' ? 'payment-toggle__btn--active' : ''}`}
+                    onClick={() => setMetodoPagoKit('transferencia')}
+                  >
+                    🏦 Transferencia
+                  </button>
+                </div>
               </div>
 
               {/* Total desglosado */}

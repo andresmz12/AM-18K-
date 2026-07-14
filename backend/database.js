@@ -150,6 +150,18 @@ async function init() {
     ALTER TABLE ventas       ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id);
     ALTER TABLE kit_sales    ADD COLUMN IF NOT EXISTS usuario_id INTEGER REFERENCES usuarios(id);
     ALTER TABLE abonos       ADD COLUMN IF NOT EXISTS cuenta_id INTEGER REFERENCES cuentas_por_cobrar(id);
+    ALTER TABLE ventas       ADD COLUMN IF NOT EXISTS metodo_pago TEXT NOT NULL DEFAULT 'efectivo';
+    ALTER TABLE kit_sales    ADD COLUMN IF NOT EXISTS metodo_pago TEXT NOT NULL DEFAULT 'efectivo';
+    ALTER TABLE cierres_caja ADD COLUMN IF NOT EXISTS apertura_efectivo NUMERIC(14,2) NOT NULL DEFAULT 0;
+    ALTER TABLE cierres_caja ADD COLUMN IF NOT EXISTS apertura_cuenta   NUMERIC(14,2) NOT NULL DEFAULT 0;
+  `);
+
+  // ── Forma de pago: solo efectivo o transferencia ────────────────────────────
+  await pool.query(`
+    ALTER TABLE ventas    DROP CONSTRAINT IF EXISTS ventas_metodo_pago_check;
+    ALTER TABLE ventas    ADD CONSTRAINT ventas_metodo_pago_check CHECK (metodo_pago IN ('efectivo', 'transferencia'));
+    ALTER TABLE kit_sales DROP CONSTRAINT IF EXISTS kit_sales_metodo_pago_check;
+    ALTER TABLE kit_sales ADD CONSTRAINT kit_sales_metodo_pago_check CHECK (metodo_pago IN ('efectivo', 'transferencia'));
   `);
 
   // ── Precisión monetaria: REAL (float) → NUMERIC ─────────────────────────────
