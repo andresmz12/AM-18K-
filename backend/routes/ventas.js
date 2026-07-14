@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../database');
+const { requireGerente } = require('../auth');
 const V = require('../validate');
 const { serverError, bizError, whereFecha } = require('../helpers');
 
@@ -72,6 +73,30 @@ router.post('/bulk', async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.biz) return res.status(400).json({ error: err.message });
+    serverError(res, err);
+  } finally {
+    client.release();
+  }
+});
+
+// Elimina una venta y repone el stock del producto (solo gerente)
+router.delete('/:id', requireGerente, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [venta] } = await client.query(
+      'SELECT * FROM ventas WHERE id = $1 AND empresa_id = $2 FOR UPDATE', [req.params.id, req.user.empresa_id]
+    );
+    if (!venta) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Venta no encontrada' });
+    }
+    await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [venta.cantidad, venta.producto_id]);
+    await client.query('DELETE FROM ventas WHERE id = $1', [venta.id]);
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
     serverError(res, err);
   } finally {
     client.release();

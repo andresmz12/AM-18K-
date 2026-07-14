@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../database');
+const { requireGerente } = require('../auth');
 const V = require('../validate');
 const { serverError } = require('../helpers');
 
@@ -83,6 +84,20 @@ router.post('/', async (req, res) => {
     if (err.code !== '23505') console.error(err);
     const msg = err.code === '23505' ? 'Ya existe un cierre de caja para hoy' : 'Error al procesar la solicitud';
     res.status(400).json({ error: msg });
+  }
+});
+
+// Elimina un cierre de caja (solo gerente) — permite corregir un cierre hecho por error
+router.delete('/:id', requireGerente, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'DELETE FROM cierres_caja WHERE id = $1 AND empresa_id = $2 RETURNING id',
+      [req.params.id, req.user.empresa_id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Cierre no encontrado' });
+    res.json({ ok: true });
+  } catch (err) {
+    serverError(res, err);
   }
 });
 

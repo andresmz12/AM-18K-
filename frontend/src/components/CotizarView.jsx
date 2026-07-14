@@ -15,7 +15,7 @@ const fmtFechaCorta = str => {
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-export default function CotizarView({ products, apiFetch }) {
+export default function CotizarView({ products, apiFetch, isGerente }) {
   // ── Estado carrito ──────────────────────────────────────────────────────────
   const [cart, setCart]           = useState([]);
   const [productoId, setProductoId] = useState('');
@@ -352,9 +352,11 @@ export default function CotizarView({ products, apiFetch }) {
                       <button className="btn btn--outline" onClick={() => handlePrintSaved(cot.id)}>
                         ⎙ Imprimir
                       </button>
-                      <button className="btn-icon btn-icon--delete" onClick={() => handleDelete(cot.id)} title="Eliminar">
-                        ✕
-                      </button>
+                      {isGerente && (
+                        <button className="btn-icon btn-icon--delete" onClick={() => handleDelete(cot.id)} title="Eliminar">
+                          ✕
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

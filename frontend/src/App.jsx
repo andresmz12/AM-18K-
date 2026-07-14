@@ -220,11 +220,11 @@ export default function App() {
         )}
 
         {view === 'ventas' && (
-          <VentasView onRegister={() => setShowSaleForm(true)} apiFetch={apiFetch} />
+          <VentasView onRegister={() => setShowSaleForm(true)} apiFetch={apiFetch} isGerente={isGerente} />
         )}
 
         {view === 'cotizar' && (
-          <CotizarView products={products} apiFetch={apiFetch} />
+          <CotizarView products={products} apiFetch={apiFetch} isGerente={isGerente} />
         )}
 
         {view === 'cuentas' && (
@@ -232,11 +232,11 @@ export default function App() {
         )}
 
         {view === 'gastos' && (
-          <GastosView apiFetch={apiFetch} />
+          <GastosView apiFetch={apiFetch} isGerente={isGerente} />
         )}
 
         {view === 'caja' && (
-          <CierreCajaView apiFetch={apiFetch} onNavigate={setView} />
+          <CierreCajaView apiFetch={apiFetch} onNavigate={setView} isGerente={isGerente} />
         )}
 
         {view === 'reportes' && isGerente && (

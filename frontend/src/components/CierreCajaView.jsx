@@ -3,7 +3,7 @@ import { cop } from '../utils/format';
 
 const fmtFecha = str => new Date(str).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 
-export default function CierreCajaView({ apiFetch, onNavigate }) {
+export default function CierreCajaView({ apiFetch, onNavigate, isGerente }) {
   const [resumen, setResumen]   = useState(null);
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -62,6 +62,12 @@ export default function CierreCajaView({ apiFetch, onNavigate }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDeleteCierre = async id => {
+    if (!window.confirm('¿Eliminar este cierre de caja?')) return;
+    const res = await apiFetch(`/api/cierres/${id}`, { method: 'DELETE' });
+    if (res.ok) load();
   };
 
   if (loading) return <div className="loading">Cargando caja...</div>;
@@ -202,6 +208,7 @@ export default function CierreCajaView({ apiFetch, onNavigate }) {
                   <th className="td-num">Esperado</th>
                   <th className="td-num">Efectivo+Cuenta</th>
                   <th className="td-num">Diferencia</th>
+                  {isGerente && <th></th>}
                 </tr>
               </thead>
               <tbody>
@@ -217,6 +224,11 @@ export default function CierreCajaView({ apiFetch, onNavigate }) {
                     <td className={`td-num ${c.diferencia === 0 ? '' : c.diferencia > 0 ? 'caja-diff--positiva' : 'caja-diff--negativa'}`}>
                       {cop(c.diferencia)}
                     </td>
+                    {isGerente && (
+                      <td>
+                        <button className="btn-icon btn-icon--delete" onClick={() => handleDeleteCierre(c.id)} title="Eliminar">✕</button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

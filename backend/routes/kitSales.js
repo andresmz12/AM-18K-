@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../database');
+const { requireGerente } = require('../auth');
 const V = require('../validate');
 const { serverError, bizError, whereFecha } = require('../helpers');
 
@@ -87,6 +88,32 @@ router.post('/', async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.biz) return res.status(400).json({ error: err.message });
+    serverError(res, err);
+  } finally {
+    client.release();
+  }
+});
+
+// Elimina una venta de kit y repone el stock de cada componente (solo gerente)
+router.delete('/:id', requireGerente, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [kit] } = await client.query(
+      'SELECT * FROM kit_sales WHERE id = $1 AND empresa_id = $2 FOR UPDATE', [req.params.id, req.user.empresa_id]
+    );
+    if (!kit) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Kit no encontrado' });
+    }
+    for (const comp of kit.componentes) {
+      await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [comp.cantidad, comp.producto_id]);
+    }
+    await client.query('DELETE FROM kit_sales WHERE id = $1', [kit.id]);
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
     serverError(res, err);
   } finally {
     client.release();

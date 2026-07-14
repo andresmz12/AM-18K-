@@ -15,7 +15,7 @@ const fmtFecha = str => {
     + ' ' + d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 };
 
-export default function GastosView({ apiFetch }) {
+export default function GastosView({ apiFetch, isGerente }) {
   const [periodo, setPeriodo] = useState('hoy');
   const [gastos, setGastos]   = useState([]);
   const [total, setTotal]     = useState(0);
@@ -204,7 +204,7 @@ export default function GastosView({ apiFetch }) {
           <table className="table">
             <thead>
               <tr>
-                <th>Foto</th><th>Fecha</th><th>Concepto</th><th className="td-num">Monto</th><th>Recurrente</th><th>Notas</th><th></th>
+                <th>Foto</th><th>Fecha</th><th>Concepto</th><th className="td-num">Monto</th><th>Recurrente</th><th>Notas</th>{isGerente && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -221,9 +221,11 @@ export default function GastosView({ apiFetch }) {
                   <td className="td-num"><strong>{cop(g.monto)}</strong></td>
                   <td>{g.recurrente ? <span className="badge-kit">Recurrente</span> : <span className="text-muted">—</span>}</td>
                   <td>{g.notas || <span className="text-muted">—</span>}</td>
-                  <td>
-                    <button className="btn-icon btn-icon--delete" onClick={() => handleDelete(g.id)} title="Eliminar">✕</button>
-                  </td>
+                  {isGerente && (
+                    <td>
+                      <button className="btn-icon btn-icon--delete" onClick={() => handleDelete(g.id)} title="Eliminar">✕</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -231,7 +233,7 @@ export default function GastosView({ apiFetch }) {
               <tr className="tfoot-total">
                 <td colSpan={3}><strong>Total</strong></td>
                 <td className="td-num"><strong>{cop(total)}</strong></td>
-                <td /><td /><td />
+                <td /><td />{isGerente && <td />}
               </tr>
             </tfoot>
           </table>

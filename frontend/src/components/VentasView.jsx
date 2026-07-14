@@ -14,14 +14,14 @@ const fmtFecha = str => {
     + ' ' + d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 };
 
-export default function VentasView({ onRegister, apiFetch }) {
+export default function VentasView({ onRegister, apiFetch, isGerente }) {
   const [periodo, setPeriodo]         = useState('hoy');
   const [items, setItems]             = useState([]); // ventas + kits combinadas
   const [totalVentas, setTotalVentas] = useState(0);
   const [totalIngresos, setTotalIngresos] = useState(0);
   const [loading, setLoading]         = useState(true);
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true);
     Promise.all([
       apiFetch(`/api/ventas?periodo=${periodo}`).then(r => r.json()),
@@ -43,6 +43,7 @@ export default function VentasView({ onRegister, apiFetch }) {
           ...k,
           tipo: 'kit',
           id: 'kit_' + k.id,
+          realId: k.id,
           displayName: k.nombre_kit,
           displayCode: '🎀',
           displayQuantity: 1,
@@ -60,7 +61,16 @@ export default function VentasView({ onRegister, apiFetch }) {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [periodo]);
+  };
+
+  useEffect(load, [periodo]);
+
+  const handleDelete = async item => {
+    if (!window.confirm(`¿Eliminar ${item.tipo === 'kit' ? 'este kit' : 'esta venta'}? El stock se repondrá.`)) return;
+    const endpoint = item.tipo === 'kit' ? `/api/kit-sales/${item.realId}` : `/api/ventas/${item.id}`;
+    const res = await apiFetch(endpoint, { method: 'DELETE' });
+    if (res.ok) load();
+  };
 
   return (
     <div className="ventas-view">
@@ -114,6 +124,7 @@ export default function VentasView({ onRegister, apiFetch }) {
                 <th className="td-num">Cantidad</th>
                 <th className="td-num">Total</th>
                 <th>Pago</th>
+                {isGerente && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -139,6 +150,11 @@ export default function VentasView({ onRegister, apiFetch }) {
                       <div className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>Cliente: {item.cliente}</div>
                     )}
                   </td>
+                  {isGerente && (
+                    <td>
+                      <button className="btn-icon btn-icon--delete" onClick={() => handleDelete(item)} title="Eliminar">✕</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -148,6 +164,7 @@ export default function VentasView({ onRegister, apiFetch }) {
                 <td className="td-num"><strong>{items.length}</strong></td>
                 <td className="td-num"><strong>{cop(totalIngresos)}</strong></td>
                 <td />
+                {isGerente && <td />}
               </tr>
             </tfoot>
           </table>
