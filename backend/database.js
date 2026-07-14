@@ -192,6 +192,22 @@ async function init() {
     ALTER TABLE cierres_caja     ALTER COLUMN diferencia           TYPE NUMERIC(14,2) USING diferencia::double precision::numeric(14,2);
   `);
 
+  // ── Permite borrar un usuario sin romper su historial de ventas/cuentas ─────
+  // (usuario_id queda en NULL, no se puede tocar la venta/cuenta en sí).
+  // cierres_caja.usuario_id es NOT NULL a propósito: un cierre de caja siempre
+  // debe quedar atribuido a alguien, así que borrar a ese usuario sigue bloqueado.
+  await pool.query(`
+    ALTER TABLE ventas DROP CONSTRAINT IF EXISTS ventas_usuario_id_fkey;
+    ALTER TABLE ventas ADD CONSTRAINT ventas_usuario_id_fkey
+      FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL;
+    ALTER TABLE kit_sales DROP CONSTRAINT IF EXISTS kit_sales_usuario_id_fkey;
+    ALTER TABLE kit_sales ADD CONSTRAINT kit_sales_usuario_id_fkey
+      FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL;
+    ALTER TABLE cuentas_por_cobrar DROP CONSTRAINT IF EXISTS cuentas_por_cobrar_usuario_id_fkey;
+    ALTER TABLE cuentas_por_cobrar ADD CONSTRAINT cuentas_por_cobrar_usuario_id_fkey
+      FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL;
+  `);
+
   // ── Rebranding: renombra la empresa de plataforma heredada del nombre anterior ──
   await pool.query(
     `UPDATE empresas SET nombre = 'AuraSistems — Plataforma' WHERE nombre = 'AM 18K — Plataforma'`

@@ -6,6 +6,11 @@ const { serverError } = require('../helpers');
 
 const router = express.Router();
 
+// Hash dummy (sin contraseña real detrás) contra el que comparamos cuando el
+// correo no existe o está inactivo — así bcrypt.compare siempre corre y el
+// tiempo de respuesta no delata si un correo está registrado.
+const DUMMY_HASH = '$2a$10$.VG0FftAbfexO9y0M2osweMVOtn/eHqBQtZFispVDh3BVE0nxjQxu';
+
 router.post('/signup', async (req, res) => {
   const empresa_nombre = V.str(req.body.empresa_nombre, 120);
   const nombre         = V.str(req.body.nombre, 120);
@@ -53,9 +58,11 @@ router.post('/login', async (req, res) => {
        JOIN empresas e ON e.id = u.empresa_id
        WHERE u.email = $1`, [email]
     );
-    if (!usuario || !usuario.activo) return res.status(401).json({ error: 'Credenciales inválidas' });
-    const ok = await comparePassword(password, usuario.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Credenciales inválidas' });
+    // Siempre se compara contra un hash (real o dummy) para que el tiempo de
+    // respuesta no revele si el correo existe.
+    const hashToCompare = (usuario && usuario.activo) ? usuario.password_hash : DUMMY_HASH;
+    const ok = await comparePassword(password, hashToCompare);
+    if (!usuario || !usuario.activo || !ok) return res.status(401).json({ error: 'Credenciales inválidas' });
     // Solo después de validar la contraseña se revela el estado de suspensión
     if (usuario.rol !== 'superadmin' && !usuario.empresa_activa)
       return res.status(403).json({ error: 'Esta cuenta está suspendida. Contacta a soporte.' });

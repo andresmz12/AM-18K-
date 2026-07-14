@@ -64,6 +64,8 @@ router.delete('/:id', async (req, res) => {
     await pool.query('DELETE FROM usuarios WHERE id = $1', [id]);
     res.json({ ok: true });
   } catch (err) {
+    if (err.code === '23503')
+      return res.status(400).json({ error: 'No se puede eliminar: este usuario tiene cierres de caja registrados a su nombre.' });
     serverError(res, err);
   }
 });

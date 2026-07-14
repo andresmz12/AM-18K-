@@ -136,6 +136,8 @@ router.delete('/:id', requireGerente, async (req, res) => {
     await pool.query('DELETE FROM products WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
     res.json({ ok: true });
   } catch (err) {
+    if (err.code === '23503')
+      return res.status(400).json({ error: 'No se puede eliminar: este producto tiene ventas registradas.' });
     serverError(res, err);
   }
 });
