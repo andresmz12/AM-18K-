@@ -329,6 +329,11 @@ export default function LandingPage({ onLogin, onSignup }) {
           <img className="lp-footer__mark" src="/logo-icon-light.png" alt="" aria-hidden="true" /> AuraSistems
         </div>
         <p>© {new Date().getFullYear()} AuraSistems · Sistema de gestión para joyerías</p>
+        <p className="lp-footer__legal">
+          <a href="/terminos.html">Términos de Servicio</a>
+          <span aria-hidden="true"> · </span>
+          <a href="/privacidad.html">Política de Privacidad</a>
+        </p>
       </footer>
     </div>
   );

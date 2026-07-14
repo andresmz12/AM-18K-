@@ -179,8 +179,8 @@ export default function AuthView({ initialMode = 'login', onBack }) {
           </p>
 
           <p className="auth-legal">
-            Al continuar aceptas el uso responsable de la plataforma.
-            Tus datos se almacenan de forma segura.
+            Al continuar aceptas los <a href="/terminos.html" target="_blank" rel="noopener noreferrer">Términos de Servicio</a> y
+            la <a href="/privacidad.html" target="_blank" rel="noopener noreferrer">Política de Privacidad</a>.
           </p>
         </div>
       </main>

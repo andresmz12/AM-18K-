@@ -1625,6 +1625,8 @@ body {
   line-height: 1.6;
   color: var(--gray-400);
 }
+.auth-legal a { color: var(--gray-600); text-decoration: underline; }
+.auth-legal a:hover { color: var(--gold-dark); }
 
 /* En pantallas angostas el panel de marca se oculta y aparece el logo compacto */
 @media (max-width: 900px) {

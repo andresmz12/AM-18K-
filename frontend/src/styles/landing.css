@@ -435,6 +435,10 @@
 }
 .lp-footer__mark { width: 18px; height: 18px; object-fit: contain; }
 
+.lp-footer__legal { margin-top: 8px; font-size: 12px; }
+.lp-footer__legal a { color: var(--gray-400); text-decoration: underline; }
+.lp-footer__legal a:hover { color: var(--black); }
+
 /* ── Responsive ──────────────────────────────────────────── */
 
 @media (max-width: 900px) {
