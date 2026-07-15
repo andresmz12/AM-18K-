@@ -105,10 +105,9 @@ router.post('/', async (req, res) => {
 router.get('/:id/pdf', async (req, res) => {
   try {
     const { rows: [c] } = await pool.query(
-      `SELECT c.*, u.nombre AS usuario_nombre, e.nombre AS empresa_nombre
+      `SELECT c.*, u.nombre AS usuario_nombre
        FROM cierres_caja c
        JOIN usuarios u ON u.id = c.usuario_id
-       JOIN empresas e ON e.id = c.empresa_id
        WHERE c.id = $1 AND c.empresa_id = $2`,
       [req.params.id, req.user.empresa_id]
     );
@@ -122,7 +121,6 @@ router.get('/:id/pdf', async (req, res) => {
     doc.pipe(res);
 
     doc.fontSize(16).fillColor('#0A0A0A').text('AuraSistems — Cierre de Caja', { continued: false });
-    doc.fontSize(10).fillColor('#666666').text(c.empresa_nombre);
     doc.fontSize(9).fillColor('#9A9A9A').text(`Fecha: ${fechaStr}  ·  Cerrado por: ${c.usuario_nombre}`);
     doc.moveDown(1.5);
 
