@@ -160,6 +160,11 @@ async function init() {
     ALTER TABLE kit_sales    ADD COLUMN IF NOT EXISTS metodo_pago TEXT NOT NULL DEFAULT 'efectivo';
     ALTER TABLE cierres_caja ADD COLUMN IF NOT EXISTS apertura_efectivo NUMERIC(14,2) NOT NULL DEFAULT 0;
     ALTER TABLE cierres_caja ADD COLUMN IF NOT EXISTS apertura_cuenta   NUMERIC(14,2) NOT NULL DEFAULT 0;
+    -- items: productos vendidos "al fiado" en esta cuenta (si aplica) — se descuenta
+    -- el stock al crearla, igual que una venta normal. pagada_en: se llena solo
+    -- cuando el saldo llega a 0, para poder sumarla como ingreso ese día.
+    ALTER TABLE cuentas_por_cobrar ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]';
+    ALTER TABLE cuentas_por_cobrar ADD COLUMN IF NOT EXISTS pagada_en TIMESTAMPTZ;
   `);
 
   // ── Forma de pago: solo efectivo o transferencia ────────────────────────────

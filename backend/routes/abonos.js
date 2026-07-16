@@ -2,7 +2,7 @@ const express = require('express');
 const { pool } = require('../database');
 const { requireGerente } = require('../auth');
 const V = require('../validate');
-const { serverError } = require('../helpers');
+const { serverError, actualizarPagadaEn } = require('../helpers');
 
 const router = express.Router();
 
@@ -39,6 +39,7 @@ router.patch('/:id', requireGerente, async (req, res) => {
       'UPDATE abonos SET monto = $1, notas = $2 WHERE id = $3 RETURNING *',
       [monto, notas, abono.id]
     );
+    await actualizarPagadaEn(client, abono.cuenta_id);
     await client.query('COMMIT');
     res.json(actualizado);
   } catch (err) {
@@ -50,11 +51,25 @@ router.patch('/:id', requireGerente, async (req, res) => {
 });
 
 router.delete('/:id', requireGerente, async (req, res) => {
+  const client = await pool.connect();
   try {
-    await pool.query('DELETE FROM abonos WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
+    await client.query('BEGIN');
+    const { rows: [abono] } = await client.query(
+      'SELECT * FROM abonos WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]
+    );
+    if (!abono) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Abono no encontrado' });
+    }
+    await client.query('DELETE FROM abonos WHERE id = $1', [abono.id]);
+    await actualizarPagadaEn(client, abono.cuenta_id);
+    await client.query('COMMIT');
     res.json({ ok: true });
   } catch (err) {
+    await client.query('ROLLBACK');
     serverError(res, err);
+  } finally {
+    client.release();
   }
 });
 

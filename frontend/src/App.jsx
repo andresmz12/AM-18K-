@@ -228,7 +228,7 @@ export default function App() {
         )}
 
         {view === 'cuentas' && (
-          <CuentasPorCobrarView apiFetch={apiFetch} isGerente={isGerente} />
+          <CuentasPorCobrarView apiFetch={apiFetch} isGerente={isGerente} products={products} />
         )}
 
         {view === 'gastos' && (

@@ -8,14 +8,17 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   const empresaId = req.user.empresa_id;
   try {
-    const [total, invertido, valorInv, stockBajo, pesoOro, ventasHoy, kitsHoy] = await Promise.all([
+    const [total, invertido, valorInv, stockBajo, pesoOro, ventasHoy, kitsHoy, cuentasPagadasHoy] = await Promise.all([
       pool.query('SELECT COUNT(*)::int AS c FROM products WHERE empresa_id = $1', [empresaId]),
       pool.query('SELECT COALESCE(SUM(costo * stock), 0) AS v FROM products WHERE empresa_id = $1', [empresaId]),
       pool.query('SELECT COALESCE(SUM(precio_venta * stock), 0) AS v FROM products WHERE empresa_id = $1', [empresaId]),
       pool.query('SELECT COUNT(*)::int AS c FROM products WHERE empresa_id = $1 AND stock <= stock_minimo', [empresaId]),
       pool.query("SELECT COALESCE(SUM(peso_gramos * stock), 0) AS v FROM products WHERE empresa_id = $1 AND categoria = 'Oro 18k'", [empresaId]),
       pool.query("SELECT COUNT(*)::int AS c, COALESCE(SUM(total), 0) AS t FROM ventas WHERE empresa_id = $1 AND fecha::date = CURRENT_DATE", [empresaId]),
-      pool.query("SELECT COUNT(*)::int AS c, COALESCE(SUM(total), 0) AS t FROM kit_sales WHERE empresa_id = $1 AND fecha::date = CURRENT_DATE", [empresaId])
+      pool.query("SELECT COUNT(*)::int AS c, COALESCE(SUM(total), 0) AS t FROM kit_sales WHERE empresa_id = $1 AND fecha::date = CURRENT_DATE", [empresaId]),
+      // Cuentas por cobrar que quedaron saldadas hoy — cuentan como venta/ingreso
+      // recién en el momento en que el cliente termina de pagar, no cuando se fió.
+      pool.query("SELECT COUNT(*)::int AS c, COALESCE(SUM(monto_total), 0) AS t FROM cuentas_por_cobrar WHERE empresa_id = $1 AND pagada_en::date = CURRENT_DATE", [empresaId])
     ]);
     const inv = parseFloat(invertido.rows[0].v);
     const val = parseFloat(valorInv.rows[0].v);
@@ -26,8 +29,8 @@ router.get('/', async (req, res) => {
       gananciasPotencial: val - inv,
       productosStockBajo: stockBajo.rows[0].c,
       pesoTotalOroGramos: parseFloat(pesoOro.rows[0].v),
-      ventasHoy:          ventasHoy.rows[0].c + kitsHoy.rows[0].c,
-      ingresosHoy:        parseFloat(ventasHoy.rows[0].t) + parseFloat(kitsHoy.rows[0].t)
+      ventasHoy:          ventasHoy.rows[0].c + kitsHoy.rows[0].c + cuentasPagadasHoy.rows[0].c,
+      ingresosHoy:        parseFloat(ventasHoy.rows[0].t) + parseFloat(kitsHoy.rows[0].t) + parseFloat(cuentasPagadasHoy.rows[0].t)
     };
     if (req.user.rol !== 'gerente') {
       delete data.totalInvertido;

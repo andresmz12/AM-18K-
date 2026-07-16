@@ -13,7 +13,7 @@ const ESTADOS = [
   { key: 'todas',     label: 'Todas' },
 ];
 
-function NuevaCuentaForm({ apiFetch, onDone, onCancel }) {
+function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
   const [cliente, setCliente]         = useState('');
   const [montoTotal, setMontoTotal]   = useState('');
   const [descripcion, setDescripcion] = useState('');
@@ -21,17 +21,65 @@ function NuevaCuentaForm({ apiFetch, onDone, onCancel }) {
   const [error, setError]             = useState('');
   const [saving, setSaving]           = useState(false);
 
+  // Carrito de productos "al fiado" — si tiene ítems, el monto se calcula
+  // solo y se descuenta el stock al crear la cuenta, igual que una venta.
+  const [cart, setCart]             = useState([]);
+  const [productoId, setProductoId] = useState('');
+  const [busqueda, setBusqueda]     = useState('');
+  const [cantidad, setCantidad]     = useState('1');
+  const [precio, setPrecio]         = useState('');
+
+  const producto = (products || []).find(p => p.id === Number(productoId));
+
+  useEffect(() => {
+    if (producto) setPrecio(String(producto.precio_venta));
+  }, [productoId]);
+
+  const stockUsado      = productoId
+    ? cart.filter(i => i.producto_id === Number(productoId)).reduce((s, i) => s + i.cantidad, 0)
+    : 0;
+  const stockDisponible = producto ? producto.stock - stockUsado : 0;
+  const cantidadNum     = parseInt(cantidad) || 0;
+  const precioNum       = parseFloat(precio) || 0;
+  const stockOk         = !producto || cantidadNum <= stockDisponible;
+
+  const busquedaNorm = busqueda.trim().toLowerCase();
+  const productosFiltrados = (busquedaNorm ? (products || []).filter(p =>
+    p.nombre.toLowerCase().includes(busquedaNorm) ||
+    p.codigo.toLowerCase().includes(busquedaNorm) ||
+    (p.categoria || '').toLowerCase().includes(busquedaNorm)
+  ) : (products || []));
+
+  const addToCart = () => {
+    if (!producto || !cantidadNum || !precioNum || !stockOk) return;
+    setCart(prev => [
+      ...prev,
+      { producto_id: producto.id, nombre: producto.nombre, codigo: producto.codigo,
+        cantidad: cantidadNum, precio_unitario: precioNum, subtotal: cantidadNum * precioNum }
+    ]);
+    setProductoId(''); setCantidad('1'); setPrecio(''); setBusqueda('');
+  };
+
+  const removeFromCart = idx => setCart(prev => prev.filter((_, i) => i !== idx));
+  const totalCarrito = cart.reduce((s, i) => s + i.subtotal, 0);
+
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
-    const monto = parseFloat(montoTotal);
-    if (!cliente || !monto || monto <= 0) { setError('Ingresa un cliente y un monto total válido'); return; }
+    if (!cliente) { setError('Ingresa el nombre del cliente'); return; }
+    if (cart.length === 0) {
+      const monto = parseFloat(montoTotal);
+      if (!monto || monto <= 0) { setError('Ingresa un monto total válido, o agrega productos abajo'); return; }
+    }
     setSaving(true);
     try {
+      const body = cart.length > 0
+        ? { cliente, items: cart.map(({ producto_id, cantidad, precio_unitario }) => ({ producto_id, cantidad, precio_unitario })), descripcion: descripcion || null, notas: notas || null }
+        : { cliente, monto_total: parseFloat(montoTotal), descripcion: descripcion || null, notas: notas || null };
       const res = await apiFetch('/api/cuentas-por-cobrar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente, monto_total: monto, descripcion: descripcion || null, notas: notas || null })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Error al crear la cuenta');
@@ -51,10 +99,12 @@ function NuevaCuentaForm({ apiFetch, onDone, onCancel }) {
           <label>Cliente</label>
           <input value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Nombre del cliente" />
         </div>
-        <div className="form-group">
-          <label>Monto total de la deuda (COP)</label>
-          <input type="number" min="0" step="0.01" value={montoTotal} onChange={e => setMontoTotal(e.target.value)} placeholder="0" />
-        </div>
+        {cart.length === 0 && (
+          <div className="form-group">
+            <label>Monto total de la deuda (COP)</label>
+            <input type="number" min="0" step="0.01" value={montoTotal} onChange={e => setMontoTotal(e.target.value)} placeholder="0" />
+          </div>
+        )}
         <div className="form-group form-group--full">
           <label>Descripción (opcional)</label>
           <input value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Ej: Anillo oro 18k, apartado, etc." />
@@ -64,6 +114,88 @@ function NuevaCuentaForm({ apiFetch, onDone, onCancel }) {
           <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2} placeholder="Observaciones adicionales..." />
         </div>
       </div>
+
+      {products && products.length > 0 && (
+        <div className="sale-add-section" style={{ marginTop: 4 }}>
+          <p className="sale-section-label">
+            Productos que se llevó "al fiado" <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>(opcional — descuenta el stock)</span>
+          </p>
+          <div className="form-grid">
+            <div className="form-group form-group--full">
+              <label>Producto</label>
+              <input
+                type="text"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                placeholder="Buscar por nombre, código o categoría..."
+                style={{ marginBottom: 8 }}
+              />
+              <select
+                value={productoId}
+                onChange={e => setProductoId(e.target.value)}
+                size={busquedaNorm ? Math.min(productosFiltrados.length + 1, 8) : undefined}
+              >
+                <option value="">
+                  {busquedaNorm
+                    ? `— ${productosFiltrados.length} resultado${productosFiltrados.length !== 1 ? 's' : ''} —`
+                    : '— Seleccionar producto —'}
+                </option>
+                {productosFiltrados.map(p => {
+                  const usado = cart.filter(i => i.producto_id === p.id).reduce((s, i) => s + i.cantidad, 0);
+                  const disp  = p.stock - usado;
+                  return (
+                    <option key={p.id} value={p.id} disabled={disp <= 0}>
+                      [{p.codigo}] {p.nombre} — Stock: {disp}
+                    </option>
+                  );
+                })}
+              </select>
+              {producto && (
+                <p className="form-hint">
+                  Disponible: <strong>{stockDisponible}</strong> unidad{stockDisponible !== 1 ? 'es' : ''}
+                </p>
+              )}
+            </div>
+            <div className="form-group">
+              <label>Cantidad</label>
+              <input type="number" min="1" max={producto ? stockDisponible : undefined} value={cantidad} onChange={e => setCantidad(e.target.value)} />
+              {!stockOk && <p className="form-error">Máx. {stockDisponible} disponible{stockDisponible !== 1 ? 's' : ''}</p>}
+            </div>
+            <div className="form-group">
+              <label>Precio Unitario (COP)</label>
+              <input type="number" min="0" step="0.01" value={precio} onChange={e => setPrecio(e.target.value)} />
+            </div>
+          </div>
+          <button type="button" className="btn btn--outline" onClick={addToCart} disabled={!producto || !cantidadNum || !precioNum || !stockOk}>
+            + Agregar producto
+          </button>
+
+          {cart.length > 0 && (
+            <div className="sale-cart" style={{ marginTop: 14 }}>
+              <div className="sale-cart-list">
+                {cart.map((item, i) => (
+                  <div key={i} className="sale-cart-item">
+                    <div className="sale-cart-item__info">
+                      <span className="code-badge">{item.codigo}</span>
+                      <span className="sale-cart-item__name">{item.nombre}</span>
+                    </div>
+                    <div className="sale-cart-item__nums">
+                      <span className="sale-cart-item__detail">{item.cantidad} × {cop(item.precio_unitario)}</span>
+                      <strong className="sale-cart-item__sub">{cop(item.subtotal)}</strong>
+                    </div>
+                    <button type="button" className="btn-icon btn-icon--delete" onClick={() => removeFromCart(i)} title="Quitar">✕</button>
+                  </div>
+                ))}
+              </div>
+              <div className="sale-total-row">
+                <span className="sale-total-label">Total de la deuda</span>
+                <div className="precio-display precio-display--lg">{cop(totalCarrito)}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">
         <button type="button" className="btn btn--outline" onClick={onCancel}>Cancelar</button>
@@ -243,7 +375,7 @@ function CuentaDetalle({ apiFetch, cuentaId, onChange, isGerente }) {
   );
 }
 
-export default function CuentasPorCobrarView({ apiFetch, isGerente }) {
+export default function CuentasPorCobrarView({ apiFetch, isGerente, products }) {
   const [estado, setEstado]     = useState('pendiente');
   const [cuentas, setCuentas]   = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -319,6 +451,7 @@ export default function CuentasPorCobrarView({ apiFetch, isGerente }) {
       {showForm && (
         <NuevaCuentaForm
           apiFetch={apiFetch}
+          products={products}
           onCancel={() => setShowForm(false)}
           onDone={() => { setShowForm(false); load(); }}
         />
