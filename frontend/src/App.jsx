@@ -48,7 +48,10 @@ export default function App() {
       .then(d => alive && setProducts(d))
       .catch(console.error);
     return () => { alive = false; };
-  }, [user, search, categoria, tick]);
+    // `view` en las dependencias: si el stock cambió mientras estabas en otra
+    // pantalla, al volver a Inventario se trae el número real en vez de la
+    // lista vieja que quedó en memoria.
+  }, [user, search, categoria, tick, view]);
 
   useEffect(() => {
     if (!user || user.rol === 'superadmin') return;
