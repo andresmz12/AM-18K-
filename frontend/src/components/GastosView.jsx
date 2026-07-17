@@ -32,14 +32,19 @@ export default function GastosView({ apiFetch, isGerente }) {
   const [error, setError]         = useState('');
   const [saving, setSaving]       = useState(false);
   const fileInputRef = useRef(null);
+  const loadToken = useRef(0);
 
   const load = () => {
+    const token = ++loadToken.current;
     setLoading(true);
     apiFetch(`/api/gastos?periodo=${periodo}`)
       .then(r => r.json())
-      .then(d => { setGastos(d.gastos || []); setTotal(d.total || 0); })
+      .then(d => {
+        if (loadToken.current !== token) return; // una respuesta más reciente ya llegó
+        setGastos(d.gastos || []); setTotal(d.total || 0);
+      })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { if (loadToken.current === token) setLoading(false); });
   };
 
   useEffect(load, [periodo]);

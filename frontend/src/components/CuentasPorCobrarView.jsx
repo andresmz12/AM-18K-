@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { cop } from '../utils/format';
 
 const fmtFecha = str => {
@@ -386,14 +386,16 @@ export default function CuentasPorCobrarView({ apiFetch, isGerente, products }) 
   const [editDescripcion, setEditDescripcion] = useState('');
   const [editError, setEditError]   = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const loadToken = useRef(0);
 
   const load = () => {
+    const token = ++loadToken.current;
     setLoading(true);
     apiFetch(`/api/cuentas-por-cobrar?estado=${estado}`)
       .then(r => r.json())
-      .then(setCuentas)
+      .then(d => { if (loadToken.current === token) setCuentas(d); })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { if (loadToken.current === token) setLoading(false); });
   };
 
   useEffect(load, [estado]);

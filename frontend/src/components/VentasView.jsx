@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { cop } from '../utils/format';
 
 const PERIODOS = [
@@ -20,14 +20,17 @@ export default function VentasView({ onRegister, apiFetch, isGerente }) {
   const [totalVentas, setTotalVentas] = useState(0);
   const [totalIngresos, setTotalIngresos] = useState(0);
   const [loading, setLoading]         = useState(true);
+  const loadToken = useRef(0);
 
   const load = () => {
+    const token = ++loadToken.current;
     setLoading(true);
     Promise.all([
       apiFetch(`/api/ventas?periodo=${periodo}`).then(r => r.json()),
       apiFetch(`/api/kit-sales?periodo=${periodo}`).then(r => r.json())
     ])
       .then(([ventasData, kitsData]) => {
+        if (loadToken.current !== token) return; // una respuesta más reciente ya llegó
         // Combinar ventas simples
         const ventasSimples = (ventasData.ventas || []).map(v => ({
           ...v,
@@ -60,7 +63,7 @@ export default function VentasView({ onRegister, apiFetch, isGerente }) {
         setTotalIngresos(todos.reduce((s, v) => s + v.displayTotal, 0));
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { if (loadToken.current === token) setLoading(false); });
   };
 
   useEffect(load, [periodo]);
