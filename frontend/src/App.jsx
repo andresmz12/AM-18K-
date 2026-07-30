@@ -109,9 +109,14 @@ export default function App() {
 
   const handleDelete = async id => {
     if (!window.confirm('¿Eliminar este producto?')) return;
-    await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
-    refresh();
-    notify('Producto eliminado');
+    const res = await apiFetch(`/api/products/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      refresh();
+      notify('Producto eliminado');
+    } else {
+      const err = await res.json();
+      notify(err.error || 'Error al eliminar', 'error');
+    }
   };
 
   const handleSale = async formData => {

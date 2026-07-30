@@ -133,7 +133,8 @@ router.put('/:id', requireGerente, async (req, res) => {
 
 router.delete('/:id', requireGerente, async (req, res) => {
   try {
-    await pool.query('DELETE FROM products WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
+    const { rowCount } = await pool.query('DELETE FROM products WHERE id = $1 AND empresa_id = $2', [req.params.id, req.user.empresa_id]);
+    if (!rowCount) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json({ ok: true });
   } catch (err) {
     if (err.code === '23503')
