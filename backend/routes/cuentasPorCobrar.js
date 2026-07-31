@@ -42,17 +42,22 @@ router.post('/', async (req, res) => {
   if (!cliente) return res.status(400).json({ error: 'Cliente requerido' });
   if (descripcion === undefined || notas === undefined) return res.status(400).json({ error: 'Texto demasiado largo' });
 
+  // Recargo que solo se puede fijar al crear la cuenta (ej. por fiar la prenda) —
+  // se suma una vez al total, sin importar el modo (manual o con productos).
+  const incremento = V.num(req.body.incremento ?? 0, { min: 0 });
+  if (incremento === null) return res.status(400).json({ error: 'El incremento debe ser un número positivo' });
+
   const tieneItems = Array.isArray(items) && items.length > 0;
 
   // Modo manual: deuda sin productos asociados (servicio, adelanto, etc.) — no toca stock.
   if (!tieneItems) {
-    const monto_total = V.num(req.body.monto_total, { min: 0.01 });
-    if (monto_total === null) return res.status(400).json({ error: 'Monto total (mayor a 0) es requerido' });
+    const montoBase = V.num(req.body.monto_total, { min: 0.01 });
+    if (montoBase === null) return res.status(400).json({ error: 'Monto total (mayor a 0) es requerido' });
     try {
       const { rows: [cuenta] } = await pool.query(
-        `INSERT INTO cuentas_por_cobrar (empresa_id, usuario_id, cliente, descripcion, monto_total, notas)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        [empresaId, req.user.id, cliente, descripcion, monto_total, notas]
+        `INSERT INTO cuentas_por_cobrar (empresa_id, usuario_id, cliente, descripcion, monto_total, incremento, notas)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [empresaId, req.user.id, cliente, descripcion, montoBase + incremento, incremento, notas]
       );
       return res.status(201).json({ ...cuenta, monto_abonado: 0, saldo: cuenta.monto_total, estado: 'pendiente' });
     } catch (err) {
@@ -77,11 +82,11 @@ router.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    let monto_total = 0;
+    let montoBase = 0;
     const itemsGuardados = [];
     for (const item of items) {
       if (!item.producto_id) {
-        monto_total += item.cantidad * item.precio_unitario;
+        montoBase += item.cantidad * item.precio_unitario;
         itemsGuardados.push({
           producto_id: null, nombre: V.str(item.nombre, 200),
           cantidad: item.cantidad, precio_unitario: item.precio_unitario
@@ -93,7 +98,7 @@ router.post('/', async (req, res) => {
       );
       if (!p) throw bizError(`Producto no encontrado (id ${item.producto_id})`);
       if (p.stock < item.cantidad) throw bizError(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
-      monto_total += item.cantidad * item.precio_unitario;
+      montoBase += item.cantidad * item.precio_unitario;
       itemsGuardados.push({
         producto_id: item.producto_id, nombre: p.nombre,
         cantidad: item.cantidad, precio_unitario: item.precio_unitario
@@ -104,9 +109,9 @@ router.post('/', async (req, res) => {
       await client.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.cantidad, item.producto_id]);
     }
     const { rows: [cuenta] } = await client.query(
-      `INSERT INTO cuentas_por_cobrar (empresa_id, usuario_id, cliente, descripcion, monto_total, notas, items)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [empresaId, req.user.id, cliente, descripcion, monto_total, notas, JSON.stringify(itemsGuardados)]
+      `INSERT INTO cuentas_por_cobrar (empresa_id, usuario_id, cliente, descripcion, monto_total, incremento, notas, items)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [empresaId, req.user.id, cliente, descripcion, montoBase + incremento, incremento, notas, JSON.stringify(itemsGuardados)]
     );
     await client.query('COMMIT');
     res.status(201).json({ ...cuenta, monto_abonado: 0, saldo: cuenta.monto_total, estado: 'pendiente' });

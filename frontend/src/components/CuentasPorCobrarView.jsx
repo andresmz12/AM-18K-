@@ -191,11 +191,14 @@ function ItemsFiadoBuilder({ products, cart, setCart, titulo = 'Productos que se
 function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
   const [cliente, setCliente]         = useState('');
   const [montoTotal, setMontoTotal]   = useState('');
+  const [incremento, setIncremento]   = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [notas, setNotas]             = useState('');
   const [error, setError]             = useState('');
   const [saving, setSaving]           = useState(false);
   const [cart, setCart]               = useState([]);
+
+  const incrementoNum = parseFloat(incremento) || 0;
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -208,8 +211,8 @@ function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
     setSaving(true);
     try {
       const body = cart.length > 0
-        ? { cliente, items: cart.map(({ producto_id, cantidad, precio_unitario, nombre }) => ({ producto_id, cantidad, precio_unitario, nombre })), descripcion: descripcion || null, notas: notas || null }
-        : { cliente, monto_total: parseFloat(montoTotal), descripcion: descripcion || null, notas: notas || null };
+        ? { cliente, items: cart.map(({ producto_id, cantidad, precio_unitario, nombre }) => ({ producto_id, cantidad, precio_unitario, nombre })), incremento: incrementoNum, descripcion: descripcion || null, notas: notas || null }
+        : { cliente, monto_total: parseFloat(montoTotal), incremento: incrementoNum, descripcion: descripcion || null, notas: notas || null };
       const res = await apiFetch('/api/cuentas-por-cobrar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -239,6 +242,10 @@ function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
             <input type="number" min="0" step="0.01" value={montoTotal} onChange={e => setMontoTotal(e.target.value)} placeholder="0" />
           </div>
         )}
+        <div className="form-group">
+          <label>Incremento (COP) <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>(opcional — recargo por fiar la prenda)</span></label>
+          <input type="number" min="0" step="0.01" value={incremento} onChange={e => setIncremento(e.target.value)} placeholder="0" />
+        </div>
         <div className="form-group form-group--full">
           <label>Descripción (opcional)</label>
           <input value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Ej: Anillo oro 18k, apartado, etc." />
@@ -247,6 +254,14 @@ function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
           <label>Notas (opcional)</label>
           <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2} placeholder="Observaciones adicionales..." />
         </div>
+        {incrementoNum > 0 && (
+          <div className="form-group form-group--full">
+            <p className="form-hint">
+              Con el incremento, el total de la deuda queda en{' '}
+              <strong>{cop((cart.length > 0 ? cart.reduce((s, i) => s + i.subtotal, 0) : (parseFloat(montoTotal) || 0)) + incrementoNum)}</strong>
+            </p>
+          </div>
+        )}
       </div>
 
       <ItemsFiadoBuilder products={products} cart={cart} setCart={setCart} />
@@ -416,6 +431,9 @@ function CuentaDetalle({ apiFetch, cuentaId, products, onChange, isGerente }) {
     <div className="cuenta-detalle">
       <div className="caja-resumen-grid" style={{ marginTop: 0 }}>
         <div><span className="text-muted">Monto total</span><strong>{cop(detalle.monto_total)}</strong></div>
+        {detalle.incremento > 0 && (
+          <div><span className="text-muted">Incremento incluido</span><strong>{cop(detalle.incremento)}</strong></div>
+        )}
         <div><span className="text-muted">Abonado</span><strong>{cop(detalle.monto_abonado)}</strong></div>
         <div>
           <span className="text-muted">Saldo pendiente</span>
