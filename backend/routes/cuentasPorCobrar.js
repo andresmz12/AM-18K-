@@ -155,6 +155,97 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
+// Agrega más deuda a una cuenta existente (el cliente "sube" lo que debe) —
+// mismos dos modos que al crear: monto manual, o productos (del inventario o
+// "sin stock"). Si la cuenta ya estaba saldada, vuelve a quedar pendiente
+// (actualizarPagadaEn lo detecta solo).
+router.post('/:id/incremento', async (req, res) => {
+  const { items } = req.body;
+  const empresaId = req.user.empresa_id;
+  const tieneItems = Array.isArray(items) && items.length > 0;
+
+  if (!tieneItems) {
+    if (V.num(req.body.monto, { min: 0.01 }) === null)
+      return res.status(400).json({ error: 'El monto a agregar debe ser mayor a 0' });
+  } else {
+    if (items.length > 200) return res.status(400).json({ error: 'Se permiten máximo 200 productos' });
+    for (const item of items) {
+      if (V.int(item.cantidad, { min: 1, max: 100000 }) === null)
+        return res.status(400).json({ error: 'Datos de producto inválidos' });
+      if (V.num(item.precio_unitario) === null)
+        return res.status(400).json({ error: 'Precio unitario inválido' });
+      if (!item.producto_id && !V.str(item.nombre, 200))
+        return res.status(400).json({ error: 'El nombre del ítem sin stock es requerido' });
+    }
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [cuenta] } = await client.query(
+      'SELECT * FROM cuentas_por_cobrar WHERE id = $1 AND empresa_id = $2 FOR UPDATE', [req.params.id, empresaId]
+    );
+    if (!cuenta) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Cuenta no encontrada' });
+    }
+
+    let incremento = 0;
+    let itemsActualizados = cuenta.items || [];
+
+    if (tieneItems) {
+      const nuevos = [];
+      for (const item of items) {
+        if (!item.producto_id) {
+          incremento += item.cantidad * item.precio_unitario;
+          nuevos.push({
+            producto_id: null, nombre: V.str(item.nombre, 200),
+            cantidad: item.cantidad, precio_unitario: item.precio_unitario
+          });
+          continue;
+        }
+        const { rows: [p] } = await client.query(
+          'SELECT * FROM products WHERE id = $1 AND empresa_id = $2 FOR UPDATE', [item.producto_id, empresaId]
+        );
+        if (!p) throw bizError(`Producto no encontrado (id ${item.producto_id})`);
+        if (p.stock < item.cantidad) throw bizError(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
+        incremento += item.cantidad * item.precio_unitario;
+        nuevos.push({
+          producto_id: item.producto_id, nombre: p.nombre,
+          cantidad: item.cantidad, precio_unitario: item.precio_unitario
+        });
+      }
+      for (const item of items) {
+        if (!item.producto_id) continue;
+        await client.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.cantidad, item.producto_id]);
+      }
+      itemsActualizados = [...itemsActualizados, ...nuevos];
+    } else {
+      incremento = V.num(req.body.monto, { min: 0.01 });
+    }
+
+    const { rows: [actualizada] } = await client.query(
+      `UPDATE cuentas_por_cobrar SET monto_total = monto_total + $1, items = $2 WHERE id = $3 RETURNING *`,
+      [incremento, JSON.stringify(itemsActualizados), cuenta.id]
+    );
+    await actualizarPagadaEn(client, cuenta.id);
+    const { rows: [{ t }] } = await client.query(
+      'SELECT COALESCE(SUM(monto), 0) AS t FROM abonos WHERE cuenta_id = $1', [cuenta.id]
+    );
+    await client.query('COMMIT');
+
+    const monto_abonado = parseFloat(t);
+    const saldo = actualizada.monto_total - monto_abonado;
+    res.status(201).json({ ...actualizada, monto_abonado, saldo, estado: saldo <= 0.01 ? 'pagada' : 'pendiente' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.biz) return res.status(400).json({ error: err.message });
+    serverError(res, err);
+  } finally {
+    client.release();
+  }
+});
+
 router.delete('/:id', requireGerente, async (req, res) => {
   const client = await pool.connect();
   try {

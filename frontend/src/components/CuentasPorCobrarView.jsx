@@ -13,24 +13,16 @@ const ESTADOS = [
   { key: 'todas',     label: 'Todas' },
 ];
 
-function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
-  const [cliente, setCliente]         = useState('');
-  const [montoTotal, setMontoTotal]   = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [notas, setNotas]             = useState('');
-  const [error, setError]             = useState('');
-  const [saving, setSaving]           = useState(false);
-
-  // Carrito de productos "al fiado" — si tiene ítems, el monto se calcula
-  // solo y se descuenta el stock al crear la cuenta, igual que una venta.
-  const [cart, setCart]             = useState([]);
+// Carrito de productos "al fiado" — reutilizado tanto al crear una cuenta como
+// al agregarle más deuda después. Un ítem puede ser un producto real del
+// inventario (descuenta stock) o un "pedido especial" sin producto_id, cuyo
+// nombre se escribe a mano y nunca toca inventario.
+function ItemsFiadoBuilder({ products, cart, setCart, titulo = 'Productos que se llevó "al fiado"' }) {
   const [productoId, setProductoId] = useState('');
   const [busqueda, setBusqueda]     = useState('');
   const [cantidad, setCantidad]     = useState('1');
   const [precio, setPrecio]         = useState('');
 
-  // Ítem "sin stock" — pedido especial que no existe en el inventario todavía
-  // (el cliente lo va pagando por adelantado). No descuenta stock.
   const [libreNombre, setLibreNombre]     = useState('');
   const [libreCantidad, setLibreCantidad] = useState('1');
   const [librePrecio, setLibrePrecio]     = useState('');
@@ -82,62 +74,12 @@ function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
     setLibreNombre(''); setLibreCantidad('1'); setLibrePrecio('');
   };
 
-  const handleSubmit = async e => {
-    e.preventDefault();
-    setError('');
-    if (!cliente) { setError('Ingresa el nombre del cliente'); return; }
-    if (cart.length === 0) {
-      const monto = parseFloat(montoTotal);
-      if (!monto || monto <= 0) { setError('Ingresa un monto total válido, o agrega productos abajo'); return; }
-    }
-    setSaving(true);
-    try {
-      const body = cart.length > 0
-        ? { cliente, items: cart.map(({ producto_id, cantidad, precio_unitario, nombre }) => ({ producto_id, cantidad, precio_unitario, nombre })), descripcion: descripcion || null, notas: notas || null }
-        : { cliente, monto_total: parseFloat(montoTotal), descripcion: descripcion || null, notas: notas || null };
-      const res = await apiFetch('/api/cuentas-por-cobrar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error al crear la cuenta');
-      onDone();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="form sale-add-section">
-      <p className="sale-section-label">Nueva cuenta por cobrar</p>
-      <div className="form-grid">
-        <div className="form-group">
-          <label>Cliente</label>
-          <input value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Nombre del cliente" />
-        </div>
-        {cart.length === 0 && (
-          <div className="form-group">
-            <label>Monto total de la deuda (COP)</label>
-            <input type="number" min="0" step="0.01" value={montoTotal} onChange={e => setMontoTotal(e.target.value)} placeholder="0" />
-          </div>
-        )}
-        <div className="form-group form-group--full">
-          <label>Descripción (opcional)</label>
-          <input value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Ej: Anillo oro 18k, apartado, etc." />
-        </div>
-        <div className="form-group form-group--full">
-          <label>Notas (opcional)</label>
-          <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2} placeholder="Observaciones adicionales..." />
-        </div>
-      </div>
-
+    <>
       {products && products.length > 0 && (
         <div className="sale-add-section" style={{ marginTop: 4 }}>
           <p className="sale-section-label">
-            Productos que se llevó "al fiado" <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>(opcional — descuenta el stock)</span>
+            {titulo} <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>(opcional — descuenta el stock)</span>
           </p>
           <div className="form-grid">
             <div className="form-group form-group--full">
@@ -236,12 +178,78 @@ function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
               ))}
             </div>
             <div className="sale-total-row">
-              <span className="sale-total-label">Total de la deuda</span>
+              <span className="sale-total-label">Total</span>
               <div className="precio-display precio-display--lg">{cop(totalCarrito)}</div>
             </div>
           </div>
         )}
       </div>
+    </>
+  );
+}
+
+function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
+  const [cliente, setCliente]         = useState('');
+  const [montoTotal, setMontoTotal]   = useState('');
+  const [descripcion, setDescripcion] = useState('');
+  const [notas, setNotas]             = useState('');
+  const [error, setError]             = useState('');
+  const [saving, setSaving]           = useState(false);
+  const [cart, setCart]               = useState([]);
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    setError('');
+    if (!cliente) { setError('Ingresa el nombre del cliente'); return; }
+    if (cart.length === 0) {
+      const monto = parseFloat(montoTotal);
+      if (!monto || monto <= 0) { setError('Ingresa un monto total válido, o agrega productos abajo'); return; }
+    }
+    setSaving(true);
+    try {
+      const body = cart.length > 0
+        ? { cliente, items: cart.map(({ producto_id, cantidad, precio_unitario, nombre }) => ({ producto_id, cantidad, precio_unitario, nombre })), descripcion: descripcion || null, notas: notas || null }
+        : { cliente, monto_total: parseFloat(montoTotal), descripcion: descripcion || null, notas: notas || null };
+      const res = await apiFetch('/api/cuentas-por-cobrar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al crear la cuenta');
+      onDone();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="form sale-add-section">
+      <p className="sale-section-label">Nueva cuenta por cobrar</p>
+      <div className="form-grid">
+        <div className="form-group">
+          <label>Cliente</label>
+          <input value={cliente} onChange={e => setCliente(e.target.value)} placeholder="Nombre del cliente" />
+        </div>
+        {cart.length === 0 && (
+          <div className="form-group">
+            <label>Monto total de la deuda (COP)</label>
+            <input type="number" min="0" step="0.01" value={montoTotal} onChange={e => setMontoTotal(e.target.value)} placeholder="0" />
+          </div>
+        )}
+        <div className="form-group form-group--full">
+          <label>Descripción (opcional)</label>
+          <input value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Ej: Anillo oro 18k, apartado, etc." />
+        </div>
+        <div className="form-group form-group--full">
+          <label>Notas (opcional)</label>
+          <textarea value={notas} onChange={e => setNotas(e.target.value)} rows={2} placeholder="Observaciones adicionales..." />
+        </div>
+      </div>
+
+      <ItemsFiadoBuilder products={products} cart={cart} setCart={setCart} />
 
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">
@@ -254,7 +262,65 @@ function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
   );
 }
 
-function CuentaDetalle({ apiFetch, cuentaId, onChange, isGerente }) {
+// Agrega más deuda a una cuenta que ya existe (el cliente "sube" lo que debe).
+function IncrementoForm({ apiFetch, cuentaId, products, onDone }) {
+  const [montoManual, setMontoManual] = useState('');
+  const [cart, setCart]               = useState([]);
+  const [error, setError]             = useState('');
+  const [saving, setSaving]           = useState(false);
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    setError('');
+    if (cart.length === 0) {
+      const monto = parseFloat(montoManual);
+      if (!monto || monto <= 0) { setError('Ingresa un monto válido, o agrega ítems abajo'); return; }
+    }
+    setSaving(true);
+    try {
+      const body = cart.length > 0
+        ? { items: cart.map(({ producto_id, cantidad, precio_unitario, nombre }) => ({ producto_id, cantidad, precio_unitario, nombre })) }
+        : { monto: parseFloat(montoManual) };
+      const res = await apiFetch(`/api/cuentas-por-cobrar/${cuentaId}/incremento`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al agregar a la cuenta');
+      setMontoManual(''); setCart([]);
+      onDone();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="form-grid" style={{ marginTop: 16 }}>
+      {cart.length === 0 && (
+        <div className="form-group">
+          <label>Monto a agregar (COP)</label>
+          <input type="number" min="0" step="0.01" value={montoManual} onChange={e => setMontoManual(e.target.value)} placeholder="0" />
+        </div>
+      )}
+
+      <div className="form-group form-group--full">
+        <ItemsFiadoBuilder products={products} cart={cart} setCart={setCart} titulo="¿Se lleva algo más?" />
+      </div>
+
+      <div className="form-group form-group--full">
+        {error && <p className="form-error">{error}</p>}
+        <button type="submit" className="btn btn--primary" disabled={saving}>
+          {saving ? 'Guardando...' : '+ Agregar a la cuenta'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function CuentaDetalle({ apiFetch, cuentaId, products, onChange, isGerente }) {
   const [detalle, setDetalle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [monto, setMonto]     = useState('');
@@ -266,6 +332,7 @@ function CuentaDetalle({ apiFetch, cuentaId, onChange, isGerente }) {
   const [editNotas, setEditNotas] = useState('');
   const [editError, setEditError] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const [showIncremento, setShowIncremento] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -354,6 +421,20 @@ function CuentaDetalle({ apiFetch, cuentaId, onChange, isGerente }) {
           <span className="text-muted">Saldo pendiente</span>
           <strong className={pagada ? 'caja-diff--positiva' : ''}>{cop(detalle.saldo)}</strong>
         </div>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <button type="button" className="btn btn--outline" onClick={() => setShowIncremento(s => !s)}>
+          {showIncremento ? 'Cancelar' : '+ Subirle más a esta cuenta'}
+        </button>
+        {showIncremento && (
+          <IncrementoForm
+            apiFetch={apiFetch}
+            cuentaId={cuentaId}
+            products={products}
+            onDone={() => { setShowIncremento(false); load(); onChange(); }}
+          />
+        )}
       </div>
 
       {!pagada && (
@@ -578,7 +659,7 @@ export default function CuentasPorCobrarView({ apiFetch, isGerente, products }) 
               )}
               {expanded === c.id && (
                 <div className="cotizar-saved-item__body">
-                  <CuentaDetalle apiFetch={apiFetch} cuentaId={c.id} onChange={load} isGerente={isGerente} />
+                  <CuentaDetalle apiFetch={apiFetch} cuentaId={c.id} products={products} onChange={load} isGerente={isGerente} />
                 </div>
               )}
             </div>
