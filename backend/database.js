@@ -107,6 +107,7 @@ async function init() {
       cliente         TEXT    NOT NULL,
       descripcion     TEXT,
       monto_total     NUMERIC(14,2) NOT NULL,
+      incremento      NUMERIC(14,2) NOT NULL DEFAULT 0,
       notas           TEXT,
       fecha_creacion  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -165,6 +166,8 @@ async function init() {
     -- cuando el saldo llega a 0, para poder sumarla como ingreso ese día.
     ALTER TABLE cuentas_por_cobrar ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]';
     ALTER TABLE cuentas_por_cobrar ADD COLUMN IF NOT EXISTS pagada_en TIMESTAMPTZ;
+    -- Recargo que se agrega a la deuda solo al crear la cuenta (ej. por fiar la prenda).
+    ALTER TABLE cuentas_por_cobrar ADD COLUMN IF NOT EXISTS incremento NUMERIC(14,2) NOT NULL DEFAULT 0;
   `);
 
   // ── Forma de pago: solo efectivo o transferencia ────────────────────────────
