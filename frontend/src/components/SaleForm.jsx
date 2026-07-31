@@ -21,6 +21,7 @@ export default function SaleForm({ products, onSave, onClose }) {
   const [compProductoId, setCompProductoId] = useState('');
   const [compBusqueda, setCompBusqueda] = useState('');
   const [compCantidad, setCompCantidad] = useState('1');
+  const [compPrecio, setCompPrecio]     = useState('');
   const [metodoPagoKit, setMetodoPagoKit] = useState('efectivo');
 
   const [saving, setSaving]             = useState(false);
@@ -82,7 +83,13 @@ export default function SaleForm({ products, onSave, onClose }) {
 
   // ─── Modo kit ──────────────────────────────────────────────────────────────
   const productoSelec = products.find(p => p.id === Number(compProductoId));
+
+  useEffect(() => {
+    if (productoSelec) setCompPrecio(String(productoSelec.precio_venta));
+  }, [compProductoId]);
+
   const cantidadComp = parseInt(compCantidad) || 0;
+  const compPrecioNum = parseFloat(compPrecio) || 0;
   const stockUsadoComp = productoSelec
     ? componentes.filter(c => c.producto_id === productoSelec.id).reduce((s, c) => s + c.cantidad, 0)
     : 0;
@@ -90,7 +97,7 @@ export default function SaleForm({ products, onSave, onClose }) {
   const stockOkComp = !productoSelec || cantidadComp <= stockDisponibleComp;
 
   const addComponente = () => {
-    if (!productoSelec || !cantidadComp || !stockOkComp) return;
+    if (!productoSelec || !cantidadComp || !compPrecioNum || !stockOkComp) return;
     setComponentes(prev => [
       ...prev,
       {
@@ -98,12 +105,13 @@ export default function SaleForm({ products, onSave, onClose }) {
         nombre: productoSelec.nombre,
         codigo: productoSelec.codigo,
         cantidad: cantidadComp,
-        precio_unitario: productoSelec.precio_venta,
-        subtotal: cantidadComp * productoSelec.precio_venta
+        precio_unitario: compPrecioNum,
+        subtotal: cantidadComp * compPrecioNum
       }
     ]);
     setCompProductoId('');
     setCompCantidad('1');
+    setCompPrecio('');
     setCompBusqueda('');
   };
 
@@ -132,7 +140,7 @@ export default function SaleForm({ products, onSave, onClose }) {
       await onSave({
         tipo: 'kit',
         nombre_kit: nombreKit,
-        componentes: componentes.map(({ producto_id, cantidad }) => ({ producto_id, cantidad })),
+        componentes: componentes.map(({ producto_id, cantidad, precio_unitario }) => ({ producto_id, cantidad, precio_unitario })),
         mano_obra: manoObraNum,
         valor_extra: valorExtraNum,
         cliente: cliente || null,
@@ -377,13 +385,22 @@ export default function SaleForm({ products, onSave, onClose }) {
                       <p className="form-error">Máx. {stockDisponibleComp} disponible{stockDisponibleComp !== 1 ? 's' : ''}</p>
                     )}
                   </div>
+
+                  <div className="form-group">
+                    <label>Precio Unitario (COP)</label>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={compPrecio}
+                      onChange={e => setCompPrecio(e.target.value)}
+                    />
+                  </div>
                 </div>
 
                 <button
                   type="button"
                   className="btn btn--outline"
                   onClick={addComponente}
-                  disabled={!productoSelec || !cantidadComp || !stockOkComp}
+                  disabled={!productoSelec || !cantidadComp || !compPrecioNum || !stockOkComp}
                 >
                   + Agregar componente
                 </button>

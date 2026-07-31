@@ -47,14 +47,19 @@ router.post('/', async (req, res) => {
   for (const comp of componentes) {
     if (!comp.producto_id || V.int(comp.cantidad, { min: 1, max: 100000 }) === null)
       return res.status(400).json({ error: 'Datos de componente inválidos' });
+    if (comp.precio_unitario !== undefined && comp.precio_unitario !== null && V.num(comp.precio_unitario, { min: 0 }) === null)
+      return res.status(400).json({ error: 'Precio unitario del componente inválido' });
   }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Validar stock de todos los componentes
+    // Validar stock de todos los componentes. El precio unitario lo puede
+    // ajustar quien vende (recargo por armado, negociación, etc.) — si no lo
+    // manda, se usa el precio de catálogo del producto.
     let totalComponentes = 0;
+    const componentesGuardados = [];
     for (const comp of componentes) {
       const { rows: [p] } = await client.query(
         'SELECT * FROM products WHERE id = $1 AND empresa_id = $2 FOR UPDATE', [comp.producto_id, empresaId]
@@ -62,7 +67,12 @@ router.post('/', async (req, res) => {
       if (!p) throw bizError(`Producto no encontrado (id ${comp.producto_id})`);
       if (p.stock < comp.cantidad)
         throw bizError(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
-      totalComponentes += p.precio_venta * comp.cantidad;
+      const precioUnitario = (comp.precio_unitario ?? p.precio_venta);
+      totalComponentes += precioUnitario * comp.cantidad;
+      componentesGuardados.push({
+        producto_id: comp.producto_id, nombre: p.nombre, codigo: p.codigo,
+        cantidad: comp.cantidad, precio_unitario: precioUnitario
+      });
     }
 
     // Descontar stock de todos los componentes
@@ -80,7 +90,7 @@ router.post('/', async (req, res) => {
     const { rows: [kitSale] } = await client.query(
       `INSERT INTO kit_sales (empresa_id, nombre_kit, componentes, mano_obra, valor_extra, total, cliente, metodo_pago, usuario_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [empresaId, nombre_kit, JSON.stringify(componentes), mano_obra, valor_extra, total, cliente, metodo_pago, req.user.id]
+      [empresaId, nombre_kit, JSON.stringify(componentesGuardados), mano_obra, valor_extra, total, cliente, metodo_pago, req.user.id]
     );
 
     await client.query('COMMIT');
