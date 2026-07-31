@@ -1,6 +1,6 @@
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
-const { whereFecha } = require('./helpers');
+const { whereFecha, cuentasPagadasComoVentas } = require('./helpers');
 
 const cop = v => new Intl.NumberFormat('es-CO', {
   style: 'currency', currency: 'COP', maximumFractionDigits: 0
@@ -18,7 +18,7 @@ async function datosInventario(pool, empresaId) {
 }
 
 async function datosVentas(pool, empresaId, periodo) {
-  const [ventasR, kitsR] = await Promise.all([
+  const [ventasR, kitsR, cuentasPagadas] = await Promise.all([
     pool.query(
       `SELECT v.fecha, 'Venta' AS tipo, p.nombre, p.codigo, v.cantidad, u.nombre AS vendedor, v.total
        FROM ventas v
@@ -35,9 +35,20 @@ async function datosVentas(pool, empresaId, periodo) {
        WHERE k.empresa_id = $1 AND ${whereFecha('k', periodo)}
        ORDER BY k.fecha DESC`,
       [empresaId]
-    )
+    ),
+    cuentasPagadasComoVentas(pool, empresaId, periodo)
   ]);
-  return [...ventasR.rows, ...kitsR.rows].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  // Cuentas por cobrar saldadas: cuentan como venta el día en que se terminaron de pagar.
+  const fiado = cuentasPagadas.map(c => ({
+    fecha: c.fecha,
+    tipo: 'Fiado',
+    nombre: c.descripcion || `Cobro a ${c.cliente}`,
+    codigo: '—',
+    cantidad: Array.isArray(c.items) && c.items.length > 0 ? c.items.length : 1,
+    vendedor: c.vendedor,
+    total: c.total
+  }));
+  return [...ventasR.rows, ...kitsR.rows, ...fiado].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 }
 
 async function datosGastos(pool, empresaId, periodo) {

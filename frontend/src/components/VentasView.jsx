@@ -53,8 +53,20 @@ export default function VentasView({ onRegister, apiFetch, isGerente }) {
           displayTotal: k.total
         }));
 
+        // Cuentas por cobrar saldadas en el período — cuentan como venta el día
+        // en que el cliente terminó de pagar, no el día en que se fió.
+        const cuentasFiado = (ventasData.cuentasPagadas || []).map(c => ({
+          ...c,
+          tipo: 'fiado',
+          id: 'cuenta_' + c.id,
+          displayName: c.descripcion || `Cobro a ${c.cliente}`,
+          displayCode: '🧾',
+          displayQuantity: Array.isArray(c.items) && c.items.length > 0 ? c.items.length : 1,
+          displayTotal: c.total
+        }));
+
         // Fusionar y ordenar por fecha (descendente)
-        const todos = [...ventasSimples, ...kitSales].sort((a, b) =>
+        const todos = [...ventasSimples, ...kitSales, ...cuentasFiado].sort((a, b) =>
           new Date(b.fecha) - new Date(a.fecha)
         );
 
@@ -132,30 +144,37 @@ export default function VentasView({ onRegister, apiFetch, isGerente }) {
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.id} className={item.tipo === 'kit' ? 'row-kit' : ''}>
+                <tr key={item.id} className={item.tipo === 'kit' ? 'row-kit' : item.tipo === 'fiado' ? 'row-fiado' : ''}>
                   <td className="td-fecha">{fmtFecha(item.fecha)}</td>
                   <td>
                     <strong>{item.displayName}</strong>
                     {item.tipo === 'kit' && <span className="badge-kit">Kit</span>}
+                    {item.tipo === 'fiado' && <span className="badge-kit">Fiado</span>}
                   </td>
                   <td>
-                    <span className="code-badge" style={{opacity: item.tipo === 'kit' ? 0.6 : 1}}>
+                    <span className="code-badge" style={{opacity: item.tipo === 'simple' ? 1 : 0.6}}>
                       {item.displayCode}
                     </span>
                   </td>
                   <td className="td-num">{item.displayQuantity}</td>
                   <td className="td-num"><strong>{cop(item.displayTotal)}</strong></td>
                   <td>
-                    <span className={`badge-pago badge-pago--${item.metodo_pago === 'transferencia' ? 'transferencia' : 'efectivo'}`}>
-                      {item.metodo_pago === 'transferencia' ? '🏦 Transferencia' : '💵 Efectivo'}
-                    </span>
+                    {item.tipo === 'fiado' ? (
+                      <span className="badge-pago badge-pago--fiado">🧾 Saldada (abonos)</span>
+                    ) : (
+                      <span className={`badge-pago badge-pago--${item.metodo_pago === 'transferencia' ? 'transferencia' : 'efectivo'}`}>
+                        {item.metodo_pago === 'transferencia' ? '🏦 Transferencia' : '💵 Efectivo'}
+                      </span>
+                    )}
                     {item.cliente && (
                       <div className="text-muted" style={{ fontSize: 12, marginTop: 2 }}>Cliente: {item.cliente}</div>
                     )}
                   </td>
                   {isGerente && (
                     <td>
-                      <button className="btn-icon btn-icon--delete" onClick={() => handleDelete(item)} title="Eliminar">✕</button>
+                      {item.tipo !== 'fiado' && (
+                        <button className="btn-icon btn-icon--delete" onClick={() => handleDelete(item)} title="Eliminar">✕</button>
+                      )}
                     </td>
                   )}
                 </tr>

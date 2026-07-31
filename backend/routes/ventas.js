@@ -2,7 +2,7 @@ const express = require('express');
 const { pool } = require('../database');
 const { requireGerente } = require('../auth');
 const V = require('../validate');
-const { serverError, bizError, whereFecha } = require('../helpers');
+const { serverError, bizError, whereFecha, cuentasPagadasComoVentas } = require('../helpers');
 
 const router = express.Router();
 
@@ -20,7 +20,16 @@ router.get('/', async (req, res) => {
       `SELECT COUNT(*)::int AS c, COALESCE(SUM(total), 0) AS t FROM ventas v WHERE v.empresa_id = $1 AND ${where}`,
       [req.user.empresa_id]
     );
-    res.json({ ventas: rows, totalVentas: agg.rows[0].c, totalIngresos: parseFloat(agg.rows[0].t) });
+    // Cuentas por cobrar saldadas en este período — cuentan como venta el día
+    // en que el cliente termina de pagar, no el día en que se fió el producto.
+    const cuentasPagadas = await cuentasPagadasComoVentas(pool, req.user.empresa_id, periodo);
+    const totalCuentas = cuentasPagadas.reduce((s, c) => s + c.total, 0);
+    res.json({
+      ventas: rows,
+      cuentasPagadas,
+      totalVentas: agg.rows[0].c + cuentasPagadas.length,
+      totalIngresos: parseFloat(agg.rows[0].t) + totalCuentas
+    });
   } catch (err) {
     serverError(res, err);
   }

@@ -29,6 +29,12 @@ function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
   const [cantidad, setCantidad]     = useState('1');
   const [precio, setPrecio]         = useState('');
 
+  // Ítem "sin stock" — pedido especial que no existe en el inventario todavía
+  // (el cliente lo va pagando por adelantado). No descuenta stock.
+  const [libreNombre, setLibreNombre]     = useState('');
+  const [libreCantidad, setLibreCantidad] = useState('1');
+  const [librePrecio, setLibrePrecio]     = useState('');
+
   const producto = (products || []).find(p => p.id === Number(productoId));
 
   useEffect(() => {
@@ -63,6 +69,19 @@ function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
   const removeFromCart = idx => setCart(prev => prev.filter((_, i) => i !== idx));
   const totalCarrito = cart.reduce((s, i) => s + i.subtotal, 0);
 
+  const libreCantidadNum = parseInt(libreCantidad) || 0;
+  const librePrecioNum   = parseFloat(librePrecio) || 0;
+
+  const addItemLibre = () => {
+    if (!libreNombre.trim() || !libreCantidadNum || !librePrecioNum) return;
+    setCart(prev => [
+      ...prev,
+      { producto_id: null, nombre: libreNombre.trim(), codigo: 'Pedido especial',
+        cantidad: libreCantidadNum, precio_unitario: librePrecioNum, subtotal: libreCantidadNum * librePrecioNum }
+    ]);
+    setLibreNombre(''); setLibreCantidad('1'); setLibrePrecio('');
+  };
+
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
@@ -74,7 +93,7 @@ function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
     setSaving(true);
     try {
       const body = cart.length > 0
-        ? { cliente, items: cart.map(({ producto_id, cantidad, precio_unitario }) => ({ producto_id, cantidad, precio_unitario })), descripcion: descripcion || null, notas: notas || null }
+        ? { cliente, items: cart.map(({ producto_id, cantidad, precio_unitario, nombre }) => ({ producto_id, cantidad, precio_unitario, nombre })), descripcion: descripcion || null, notas: notas || null }
         : { cliente, monto_total: parseFloat(montoTotal), descripcion: descripcion || null, notas: notas || null };
       const res = await apiFetch('/api/cuentas-por-cobrar', {
         method: 'POST',
@@ -169,32 +188,60 @@ function NuevaCuentaForm({ apiFetch, products, onDone, onCancel }) {
           <button type="button" className="btn btn--outline" onClick={addToCart} disabled={!producto || !cantidadNum || !precioNum || !stockOk}>
             + Agregar producto
           </button>
-
-          {cart.length > 0 && (
-            <div className="sale-cart" style={{ marginTop: 14 }}>
-              <div className="sale-cart-list">
-                {cart.map((item, i) => (
-                  <div key={i} className="sale-cart-item">
-                    <div className="sale-cart-item__info">
-                      <span className="code-badge">{item.codigo}</span>
-                      <span className="sale-cart-item__name">{item.nombre}</span>
-                    </div>
-                    <div className="sale-cart-item__nums">
-                      <span className="sale-cart-item__detail">{item.cantidad} × {cop(item.precio_unitario)}</span>
-                      <strong className="sale-cart-item__sub">{cop(item.subtotal)}</strong>
-                    </div>
-                    <button type="button" className="btn-icon btn-icon--delete" onClick={() => removeFromCart(i)} title="Quitar">✕</button>
-                  </div>
-                ))}
-              </div>
-              <div className="sale-total-row">
-                <span className="sale-total-label">Total de la deuda</span>
-                <div className="precio-display precio-display--lg">{cop(totalCarrito)}</div>
-              </div>
-            </div>
-          )}
         </div>
       )}
+
+      <div className="sale-add-section" style={{ marginTop: 4 }}>
+        <p className="sale-section-label">
+          ¿No está en el inventario? <span style={{ fontWeight: 400, color: 'var(--gray-400)' }}>(pedido especial / encargo — no descuenta stock)</span>
+        </p>
+        <div className="form-grid">
+          <div className="form-group form-group--full">
+            <label>Descripción del ítem</label>
+            <input
+              type="text"
+              value={libreNombre}
+              onChange={e => setLibreNombre(e.target.value)}
+              placeholder="Ej: Anillo personalizado por encargo"
+            />
+          </div>
+          <div className="form-group">
+            <label>Cantidad</label>
+            <input type="number" min="1" value={libreCantidad} onChange={e => setLibreCantidad(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label>Precio Unitario (COP)</label>
+            <input type="number" min="0" step="0.01" value={librePrecio} onChange={e => setLibrePrecio(e.target.value)} />
+          </div>
+        </div>
+        <button type="button" className="btn btn--outline" onClick={addItemLibre} disabled={!libreNombre.trim() || !libreCantidadNum || !librePrecioNum}>
+          + Agregar ítem sin stock
+        </button>
+
+        {cart.length > 0 && (
+          <div className="sale-cart" style={{ marginTop: 14 }}>
+            <div className="sale-cart-list">
+              {cart.map((item, i) => (
+                <div key={i} className="sale-cart-item">
+                  <div className="sale-cart-item__info">
+                    <span className="code-badge">{item.codigo}</span>
+                    <span className="sale-cart-item__name">{item.nombre}</span>
+                  </div>
+                  <div className="sale-cart-item__nums">
+                    <span className="sale-cart-item__detail">{item.cantidad} × {cop(item.precio_unitario)}</span>
+                    <strong className="sale-cart-item__sub">{cop(item.subtotal)}</strong>
+                  </div>
+                  <button type="button" className="btn-icon btn-icon--delete" onClick={() => removeFromCart(i)} title="Quitar">✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="sale-total-row">
+              <span className="sale-total-label">Total de la deuda</span>
+              <div className="precio-display precio-display--lg">{cop(totalCarrito)}</div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">

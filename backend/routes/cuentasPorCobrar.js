@@ -61,33 +61,52 @@ router.post('/', async (req, res) => {
   }
 
   // Modo con productos ("fiado"): descuenta el stock igual que una venta.
+  // Un ítem sin producto_id es un "pedido especial" (aún no hay stock de eso,
+  // el cliente lo va pagando por adelantado) — se registra con su nombre a mano
+  // y no toca inventario.
   if (items.length > 200) return res.status(400).json({ error: 'Se permiten máximo 200 productos' });
   for (const item of items) {
-    if (!item.producto_id || V.int(item.cantidad, { min: 1, max: 100000 }) === null)
+    if (V.int(item.cantidad, { min: 1, max: 100000 }) === null)
       return res.status(400).json({ error: 'Datos de producto inválidos' });
     if (V.num(item.precio_unitario) === null)
       return res.status(400).json({ error: 'Precio unitario inválido' });
+    if (!item.producto_id && !V.str(item.nombre, 200))
+      return res.status(400).json({ error: 'El nombre del ítem sin stock es requerido' });
   }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     let monto_total = 0;
+    const itemsGuardados = [];
     for (const item of items) {
+      if (!item.producto_id) {
+        monto_total += item.cantidad * item.precio_unitario;
+        itemsGuardados.push({
+          producto_id: null, nombre: V.str(item.nombre, 200),
+          cantidad: item.cantidad, precio_unitario: item.precio_unitario
+        });
+        continue;
+      }
       const { rows: [p] } = await client.query(
         'SELECT * FROM products WHERE id = $1 AND empresa_id = $2 FOR UPDATE', [item.producto_id, empresaId]
       );
       if (!p) throw bizError(`Producto no encontrado (id ${item.producto_id})`);
       if (p.stock < item.cantidad) throw bizError(`Stock insuficiente para "${p.nombre}" (disponible: ${p.stock})`);
       monto_total += item.cantidad * item.precio_unitario;
+      itemsGuardados.push({
+        producto_id: item.producto_id, nombre: p.nombre,
+        cantidad: item.cantidad, precio_unitario: item.precio_unitario
+      });
     }
     for (const item of items) {
+      if (!item.producto_id) continue;
       await client.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [item.cantidad, item.producto_id]);
     }
     const { rows: [cuenta] } = await client.query(
       `INSERT INTO cuentas_por_cobrar (empresa_id, usuario_id, cliente, descripcion, monto_total, notas, items)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [empresaId, req.user.id, cliente, descripcion, monto_total, notas, JSON.stringify(items)]
+      [empresaId, req.user.id, cliente, descripcion, monto_total, notas, JSON.stringify(itemsGuardados)]
     );
     await client.query('COMMIT');
     res.status(201).json({ ...cuenta, monto_abonado: 0, saldo: cuenta.monto_total, estado: 'pendiente' });
@@ -148,7 +167,9 @@ router.delete('/:id', requireGerente, async (req, res) => {
       return res.status(404).json({ error: 'Cuenta no encontrada' });
     }
     // Si la cuenta tenía productos asociados (venta "al fiado"), repone el stock.
+    // Los ítems sin producto_id son pedidos especiales y nunca tocaron inventario.
     for (const item of cuenta.items || []) {
+      if (!item.producto_id) continue;
       await client.query('UPDATE products SET stock = stock + $1 WHERE id = $2', [item.cantidad, item.producto_id]);
     }
     await client.query('DELETE FROM abonos WHERE cuenta_id = $1', [cuenta.id]);

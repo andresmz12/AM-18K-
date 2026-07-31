@@ -3,15 +3,34 @@
 // Condición SQL de fecha para los filtros de período ('hoy' | 'semana' | 'mes' | 'todo')
 // usados en ventas, kits, gastos y reportes. `alias` es el alias de tabla en el
 // query (ej. 'v' para "ventas v"); se omite si la columna no está calificada.
-function whereFecha(alias, periodo) {
-  const col = alias ? `${alias}.fecha` : 'fecha';
+// `col` permite reutilizar el mismo filtro sobre una columna distinta de "fecha"
+// (ej. "pagada_en" en cuentas_por_cobrar).
+function whereFecha(alias, periodo, col = 'fecha') {
+  const columna = alias ? `${alias}.${col}` : col;
   const map = {
-    hoy:    `${col}::date = CURRENT_DATE`,
-    semana: `${col} >= NOW() - INTERVAL '7 days'`,
-    mes:    `DATE_TRUNC('month', ${col}) = DATE_TRUNC('month', NOW())`,
+    hoy:    `${columna}::date = CURRENT_DATE`,
+    semana: `${columna} >= NOW() - INTERVAL '7 days'`,
+    mes:    `DATE_TRUNC('month', ${columna}) = DATE_TRUNC('month', NOW())`,
     todo:   'TRUE'
   };
   return map[periodo] || map.todo;
+}
+
+// Cuentas por cobrar que quedaron saldadas — se cuentan como venta en el momento
+// en que el cliente termina de pagar (pagada_en), no cuando se fió. Se usa tanto
+// en la pestaña Ventas como en los reportes de Excel/PDF para que ambos coincidan
+// con lo que ya hace el dashboard.
+async function cuentasPagadasComoVentas(pool, empresaId, periodo) {
+  const { rows } = await pool.query(
+    `SELECT c.id, c.pagada_en AS fecha, c.cliente, c.descripcion, c.items,
+            c.monto_total AS total, u.nombre AS vendedor
+     FROM cuentas_por_cobrar c
+     LEFT JOIN usuarios u ON u.id = c.usuario_id
+     WHERE c.empresa_id = $1 AND c.pagada_en IS NOT NULL AND ${whereFecha('c', periodo, 'pagada_en')}
+     ORDER BY c.pagada_en DESC`,
+    [empresaId]
+  );
+  return rows.map(r => ({ ...r, total: parseFloat(r.total) }));
 }
 
 // Los errores internos se registran en el log pero nunca se envían al cliente
@@ -51,4 +70,4 @@ async function actualizarPagadaEn(client, cuentaId) {
   }
 }
 
-module.exports = { serverError, bizError, stripCosts, whereFecha, actualizarPagadaEn };
+module.exports = { serverError, bizError, stripCosts, whereFecha, actualizarPagadaEn, cuentasPagadasComoVentas };

@@ -352,6 +352,7 @@ body {
 }
 .badge-pago--efectivo      { background: #E8F5E9; color: #1B5E20; }
 .badge-pago--transferencia { background: #E3F2FD; color: #0D47A1; }
+.badge-pago--fiado         { background: #F3E5F5; color: #6A1B9A; }
 
 .results-count {
   font-size: 13px;
@@ -417,6 +418,9 @@ body {
 
 .row-kit { background: var(--gold-faint) !important; }
 .row-kit:hover { background: rgba(184, 150, 12, 0.20) !important; }
+
+.row-fiado { background: #F3E5F5 !important; }
+.row-fiado:hover { background: #E1BEE7 !important; }
 
 .badge-kit {
   display: inline-block;
