@@ -72,6 +72,8 @@ app.use('/api/cotizaciones', require('./routes/cotizaciones'));
 app.use('/api/gastos', require('./routes/gastos'));
 app.use('/api/cuentas-por-cobrar', require('./routes/cuentasPorCobrar'));
 app.use('/api/abonos', require('./routes/abonos'));
+app.use('/api/cuentas-por-pagar', require('./routes/cuentasPorPagar'));
+app.use('/api/pagos', require('./routes/pagos'));
 app.use('/api/cierres', require('./routes/cierres'));
 
 // ─── SPA fallback ─────────────────────────────────────────────────────────────

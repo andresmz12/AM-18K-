@@ -123,6 +123,30 @@ async function init() {
       fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    -- Deudas del negocio con proveedores o personas (lo contrario de cuentas_por_cobrar).
+    -- Cada pago se aplica contra una cuenta y reduce su saldo (saldo = monto_total - suma de pagos).
+    CREATE TABLE IF NOT EXISTS cuentas_por_pagar (
+      id              SERIAL PRIMARY KEY,
+      empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
+      usuario_id      INTEGER REFERENCES usuarios(id),
+      proveedor       TEXT    NOT NULL,
+      descripcion     TEXT,
+      monto_total     NUMERIC(14,2) NOT NULL,
+      notas           TEXT,
+      pagada_en       TIMESTAMPTZ,
+      fecha_creacion  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS pagos (
+      id              SERIAL PRIMARY KEY,
+      empresa_id      INTEGER NOT NULL REFERENCES empresas(id),
+      cuenta_id       INTEGER REFERENCES cuentas_por_pagar(id),
+      proveedor       TEXT,
+      monto           NUMERIC(14,2) NOT NULL,
+      notas           TEXT,
+      fecha           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS cierres_caja (
       id              SERIAL PRIMARY KEY,
       empresa_id      INTEGER NOT NULL REFERENCES empresas(id),

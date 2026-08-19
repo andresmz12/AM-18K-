@@ -70,4 +70,23 @@ async function actualizarPagadaEn(client, cuentaId) {
   }
 }
 
-module.exports = { serverError, bizError, stripCosts, whereFecha, actualizarPagadaEn, cuentasPagadasComoVentas };
+// Igual que actualizarPagadaEn, pero para cuentas_por_pagar/pagos (deudas del
+// negocio con proveedores). Debe llamarse dentro de la misma transacción que
+// insertó/editó/borró el pago, con `client` ya conectado.
+async function actualizarPagadaEnCP(client, cuentaId) {
+  const { rows: [cuenta] } = await client.query(
+    'SELECT monto_total, pagada_en FROM cuentas_por_pagar WHERE id = $1 FOR UPDATE', [cuentaId]
+  );
+  if (!cuenta) return;
+  const { rows: [{ t }] } = await client.query(
+    'SELECT COALESCE(SUM(monto), 0) AS t FROM pagos WHERE cuenta_id = $1', [cuentaId]
+  );
+  const saldo = cuenta.monto_total - parseFloat(t);
+  if (saldo <= 0.01 && !cuenta.pagada_en) {
+    await client.query('UPDATE cuentas_por_pagar SET pagada_en = NOW() WHERE id = $1', [cuentaId]);
+  } else if (saldo > 0.01 && cuenta.pagada_en) {
+    await client.query('UPDATE cuentas_por_pagar SET pagada_en = NULL WHERE id = $1', [cuentaId]);
+  }
+}
+
+module.exports = { serverError, bizError, stripCosts, whereFecha, actualizarPagadaEn, actualizarPagadaEnCP, cuentasPagadasComoVentas };

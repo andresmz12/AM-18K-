@@ -10,6 +10,7 @@ import VentasView from './components/VentasView';
 import SaleForm from './components/SaleForm';
 import CotizarView from './components/CotizarView';
 import CuentasPorCobrarView from './components/CuentasPorCobrarView';
+import CuentasPorPagarView from './components/CuentasPorPagarView';
 import GastosView from './components/GastosView';
 import CierreCajaView from './components/CierreCajaView';
 import ReportesView from './components/ReportesView';
@@ -237,6 +238,10 @@ export default function App() {
 
         {view === 'cuentas' && (
           <CuentasPorCobrarView apiFetch={apiFetch} isGerente={isGerente} products={products} />
+        )}
+
+        {view === 'cuentas-pagar' && (
+          <CuentasPorPagarView apiFetch={apiFetch} isGerente={isGerente} />
         )}
 
         {view === 'gastos' && (

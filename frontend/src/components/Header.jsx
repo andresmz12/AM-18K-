@@ -45,6 +45,12 @@ export default function Header({ view, setView, onAdd, onExport, user, onLogout,
             Cuentas x Cobrar
           </button>
           <button
+            className={`nav-btn ${view === 'cuentas-pagar' ? 'nav-btn--active' : ''}`}
+            onClick={() => setView('cuentas-pagar')}
+          >
+            Cuentas x Pagar
+          </button>
+          <button
             className={`nav-btn ${view === 'gastos' ? 'nav-btn--active' : ''}`}
             onClick={() => setView('gastos')}
           >
