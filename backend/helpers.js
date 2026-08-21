@@ -49,44 +49,30 @@ const stripCosts = (row, rol) => {
   return rest;
 };
 
-// Recalcula el saldo de una cuenta por cobrar y marca (o limpia) pagada_en —
-// el momento en que quedó saldada. Debe llamarse dentro de la misma
-// transacción que insertó/editó/borró el abono, con `client` ya conectado.
-// Así el dashboard puede contar como ingreso del día justo cuando el cliente
-// termina de pagar, no cuando se creó la deuda.
-async function actualizarPagadaEn(client, cuentaId) {
+// Recalcula el saldo de una cuenta (por cobrar o por pagar) y marca (o limpia)
+// pagada_en — el momento en que quedó saldada. Debe llamarse dentro de la
+// misma transacción que insertó/editó/borró el movimiento (abono o pago), con
+// `client` ya conectado. Así el dashboard puede contar como ingreso/egreso el
+// día justo en que se termina de pagar, no cuando se creó la deuda.
+// `cuentaTabla`/`movimientoTabla` son nombres de tabla fijos definidos por el
+// código (nunca vienen de un request), por eso es seguro interpolarlos.
+async function actualizarPagadaEn(client, cuentaId, { cuentaTabla = 'cuentas_por_cobrar', movimientoTabla = 'abonos' } = {}) {
   const { rows: [cuenta] } = await client.query(
-    'SELECT monto_total, pagada_en FROM cuentas_por_cobrar WHERE id = $1 FOR UPDATE', [cuentaId]
+    `SELECT monto_total, pagada_en FROM ${cuentaTabla} WHERE id = $1 FOR UPDATE`, [cuentaId]
   );
   if (!cuenta) return;
   const { rows: [{ t }] } = await client.query(
-    'SELECT COALESCE(SUM(monto), 0) AS t FROM abonos WHERE cuenta_id = $1', [cuentaId]
+    `SELECT COALESCE(SUM(monto), 0) AS t FROM ${movimientoTabla} WHERE cuenta_id = $1`, [cuentaId]
   );
   const saldo = cuenta.monto_total - parseFloat(t);
   if (saldo <= 0.01 && !cuenta.pagada_en) {
-    await client.query('UPDATE cuentas_por_cobrar SET pagada_en = NOW() WHERE id = $1', [cuentaId]);
+    await client.query(`UPDATE ${cuentaTabla} SET pagada_en = NOW() WHERE id = $1`, [cuentaId]);
   } else if (saldo > 0.01 && cuenta.pagada_en) {
-    await client.query('UPDATE cuentas_por_cobrar SET pagada_en = NULL WHERE id = $1', [cuentaId]);
+    await client.query(`UPDATE ${cuentaTabla} SET pagada_en = NULL WHERE id = $1`, [cuentaId]);
   }
 }
 
-// Igual que actualizarPagadaEn, pero para cuentas_por_pagar/pagos (deudas del
-// negocio con proveedores). Debe llamarse dentro de la misma transacción que
-// insertó/editó/borró el pago, con `client` ya conectado.
-async function actualizarPagadaEnCP(client, cuentaId) {
-  const { rows: [cuenta] } = await client.query(
-    'SELECT monto_total, pagada_en FROM cuentas_por_pagar WHERE id = $1 FOR UPDATE', [cuentaId]
-  );
-  if (!cuenta) return;
-  const { rows: [{ t }] } = await client.query(
-    'SELECT COALESCE(SUM(monto), 0) AS t FROM pagos WHERE cuenta_id = $1', [cuentaId]
-  );
-  const saldo = cuenta.monto_total - parseFloat(t);
-  if (saldo <= 0.01 && !cuenta.pagada_en) {
-    await client.query('UPDATE cuentas_por_pagar SET pagada_en = NOW() WHERE id = $1', [cuentaId]);
-  } else if (saldo > 0.01 && cuenta.pagada_en) {
-    await client.query('UPDATE cuentas_por_pagar SET pagada_en = NULL WHERE id = $1', [cuentaId]);
-  }
-}
+const actualizarPagadaEnCP = (client, cuentaId) =>
+  actualizarPagadaEn(client, cuentaId, { cuentaTabla: 'cuentas_por_pagar', movimientoTabla: 'pagos' });
 
 module.exports = { serverError, bizError, stripCosts, whereFecha, actualizarPagadaEn, actualizarPagadaEnCP, cuentasPagadasComoVentas };
